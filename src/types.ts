@@ -56,9 +56,9 @@ export const DEFAULT_SETTINGS: WriteGuardSettings = {
     cerebras: ''
   },
   selectedModel: {
-    anthropic: 'claude-sonnet-4-20250514',
-    openai: 'gpt-4o',
-    gemini: 'gemini-2.0-flash',
+    anthropic: 'claude-sonnet-4-6',
+    openai: 'gpt-5.4',
+    gemini: 'gemini-3.1-pro-preview',
     cerebras: 'llama3.1-8b'
   },
   autoAnalyze: true,
@@ -71,34 +71,36 @@ export const DEFAULT_SETTINGS: WriteGuardSettings = {
 
 export const AVAILABLE_MODELS: Record<AIProviderType, string[]> = {
   anthropic: [
-    'claude-sonnet-4-20250514',
-    'claude-opus-4-20250514',
-    'claude-3-7-sonnet-20250219',
-    'claude-3-5-sonnet-20241022',
-    'claude-3-5-haiku-20241022',
-    'claude-3-opus-20240229'
+    'claude-opus-4-6',
+    'claude-sonnet-4-6',
+    'claude-haiku-4-5',
+    'claude-opus-4-5',
+    'claude-sonnet-4-5',
+    'claude-opus-4',
+    'claude-sonnet-4'
   ],
   openai: [
-    'gpt-4o',
-    'gpt-4o-mini',
-    'gpt-4-turbo',
-    'o1',
-    'o1-mini',
+    'gpt-5.4',
+    'gpt-5.4-pro',
+    'gpt-5.3',
+    'gpt-5-mini',
+    'gpt-5',
+    'o3',
     'o3-mini',
-    'gpt-4',
-    'gpt-3.5-turbo'
+    'o4-mini',
+    'gpt-4o'
   ],
   gemini: [
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b'
+    'gemini-3.1-pro-preview',
+    'gemini-3.1-flash-lite-preview',
+    'gemini-3-flash',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash'
   ],
   cerebras: [
     'llama3.1-8b',
-    'llama3.1-70b',
-    'llama-3.3-70b'
+    'qwen-3-235b-a22b-instruct-2507',
+    'gpt-oss-120b'
   ]
 };
 

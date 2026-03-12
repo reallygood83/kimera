@@ -7,9 +7,9 @@ interface AIProviderConfig {
 }
 
 const DEFAULT_MODELS: Record<AIProviderType, string> = {
-  anthropic: 'claude-sonnet-4-20250514',
-  openai: 'gpt-4o',
-  gemini: 'gemini-2.0-flash',
+  anthropic: 'claude-sonnet-4-6',
+  openai: 'gpt-5.4',
+  gemini: 'gemini-3.1-pro-preview',
   cerebras: 'llama3.1-8b'
 };
 
@@ -177,7 +177,7 @@ JSON 형식으로 응답:
           },
           body: JSON.stringify({
             model: this.model,
-            max_tokens: 2048,
+            max_completion_tokens: 2048,
             messages: [{ role: 'user', content: prompt }]
           })
         };
