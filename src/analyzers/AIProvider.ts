@@ -8,9 +8,9 @@ interface AIProviderConfig {
 
 const DEFAULT_MODELS: Record<AIProviderType, string> = {
   anthropic: 'claude-sonnet-4-6',
-  openai: 'gpt-5.4',
+  openai: 'gpt-5-mini',
   gemini: 'gemini-2.5-flash',
-  cerebras: 'gpt-oss-120b'
+  cerebras: 'llama3.1-8b'
 };
 
 const API_ENDPOINTS: Record<AIProviderType, string> = {
@@ -77,23 +77,11 @@ ${text}
   }
 
   private buildPrompt(text: string): string {
-    return `You are an AI text detection expert. Analyze the following Korean text and respond in Korean.
-반드시 한국어로 분석 결과를 작성하세요.
+    return `Analyze for AI patterns. JSON only, Korean responses.
 
-텍스트:
-"""
-${text.substring(0, 4000)}
-"""
+TEXT: ${text.substring(0, 2000)}
 
-응답은 반드시 아래 JSON 형식만 출력하세요. 다른 텍스트나 설명 없이 JSON만 출력:
-{"humanScore":0,"reasoning":"","issues":[],"suggestions":[],"overallAdvice":""}
-
-필드 설명:
-- humanScore: 0-100 (높을수록 인간적)
-- reasoning: 분석 근거 (한국어)
-- issues: [{"text":"문제 구간","reason":"이유","severity":"high|medium|low"}]
-- suggestions: [{"original":"원본","suggested":"수정안","reason":"이유"}]
-- overallAdvice: 전체 조언 (한국어)`;
+OUTPUT: {"humanScore":0-100,"reasoning":"이유","issues":[{"text":"","reason":"","severity":"high|medium|low"}],"suggestions":[{"original":"","suggested":"","reason":""}],"overallAdvice":""}`;
   }
 
   private async callAPI(prompt: string): Promise<unknown> {
@@ -179,9 +167,9 @@ ${text.substring(0, 4000)}
           },
           body: JSON.stringify({
             model: this.model,
-            max_completion_tokens: 2048,
+            max_completion_tokens: 1024,
             messages: [
-              { role: 'system', content: 'You are an AI text analyzer. Always respond with valid JSON only. No markdown, no explanations.' },
+              { role: 'system', content: 'Output JSON only.' },
               { role: 'user', content: prompt }
             ],
             response_format: { type: 'json_object' }
@@ -209,8 +197,12 @@ ${text.substring(0, 4000)}
           },
           body: JSON.stringify({
             model: this.model,
-            max_tokens: 2048,
-            messages: [{ role: 'user', content: prompt }]
+            max_tokens: 1024,
+            messages: [
+              { role: 'system', content: 'You are a JSON API. Output only valid JSON, no markdown or diagrams.' },
+              { role: 'user', content: prompt }
+            ],
+            response_format: { type: 'json_object' }
           })
         };
     }

@@ -57,9 +57,9 @@ export const DEFAULT_SETTINGS: WriteGuardSettings = {
   },
   selectedModel: {
     anthropic: 'claude-sonnet-4-6',
-    openai: 'gpt-5.4',
+    openai: 'gpt-5-mini',
     gemini: 'gemini-2.5-flash',
-    cerebras: 'gpt-oss-120b'
+    cerebras: 'llama3.1-8b'
   },
   autoAnalyze: true,
   autoAnalyzeDelay: 1500,

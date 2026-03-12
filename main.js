@@ -39,9 +39,9 @@ var DEFAULT_SETTINGS = {
   },
   selectedModel: {
     anthropic: "claude-sonnet-4-6",
-    openai: "gpt-5.4",
+    openai: "gpt-5-mini",
     gemini: "gemini-2.5-flash",
-    cerebras: "gpt-oss-120b"
+    cerebras: "llama3.1-8b"
   },
   autoAnalyze: true,
   autoAnalyzeDelay: 1500,
@@ -523,9 +523,9 @@ var LocalAnalyzer = class {
 var import_obsidian = require("obsidian");
 var DEFAULT_MODELS = {
   anthropic: "claude-sonnet-4-6",
-  openai: "gpt-5.4",
+  openai: "gpt-5-mini",
   gemini: "gemini-2.5-flash",
-  cerebras: "gpt-oss-120b"
+  cerebras: "llama3.1-8b"
 };
 var API_ENDPOINTS = {
   anthropic: "https://api.anthropic.com/v1/messages",
@@ -582,23 +582,11 @@ ${text}
     return this.extractText(response);
   }
   buildPrompt(text) {
-    return `You are an AI text detection expert. Analyze the following Korean text and respond in Korean.
-\uBC18\uB4DC\uC2DC \uD55C\uAD6D\uC5B4\uB85C \uBD84\uC11D \uACB0\uACFC\uB97C \uC791\uC131\uD558\uC138\uC694.
+    return `Analyze for AI patterns. JSON only, Korean responses.
 
-\uD14D\uC2A4\uD2B8:
-"""
-${text.substring(0, 4e3)}
-"""
+TEXT: ${text.substring(0, 2e3)}
 
-\uC751\uB2F5\uC740 \uBC18\uB4DC\uC2DC \uC544\uB798 JSON \uD615\uC2DD\uB9CC \uCD9C\uB825\uD558\uC138\uC694. \uB2E4\uB978 \uD14D\uC2A4\uD2B8\uB098 \uC124\uBA85 \uC5C6\uC774 JSON\uB9CC \uCD9C\uB825:
-{"humanScore":0,"reasoning":"","issues":[],"suggestions":[],"overallAdvice":""}
-
-\uD544\uB4DC \uC124\uBA85:
-- humanScore: 0-100 (\uB192\uC744\uC218\uB85D \uC778\uAC04\uC801)
-- reasoning: \uBD84\uC11D \uADFC\uAC70 (\uD55C\uAD6D\uC5B4)
-- issues: [{"text":"\uBB38\uC81C \uAD6C\uAC04","reason":"\uC774\uC720","severity":"high|medium|low"}]
-- suggestions: [{"original":"\uC6D0\uBCF8","suggested":"\uC218\uC815\uC548","reason":"\uC774\uC720"}]
-- overallAdvice: \uC804\uCCB4 \uC870\uC5B8 (\uD55C\uAD6D\uC5B4)`;
+OUTPUT: {"humanScore":0-100,"reasoning":"\uC774\uC720","issues":[{"text":"","reason":"","severity":"high|medium|low"}],"suggestions":[{"original":"","suggested":"","reason":""}],"overallAdvice":""}`;
   }
   async callAPI(prompt) {
     const requestParams = this.buildRequest(prompt);
@@ -675,9 +663,9 @@ ${text.substring(0, 4e3)}
           },
           body: JSON.stringify({
             model: this.model,
-            max_completion_tokens: 2048,
+            max_completion_tokens: 1024,
             messages: [
-              { role: "system", content: "You are an AI text analyzer. Always respond with valid JSON only. No markdown, no explanations." },
+              { role: "system", content: "Output JSON only." },
               { role: "user", content: prompt }
             ],
             response_format: { type: "json_object" }
@@ -703,8 +691,12 @@ ${text.substring(0, 4e3)}
           },
           body: JSON.stringify({
             model: this.model,
-            max_tokens: 2048,
-            messages: [{ role: "user", content: prompt }]
+            max_tokens: 1024,
+            messages: [
+              { role: "system", content: "You are a JSON API. Output only valid JSON, no markdown or diagrams." },
+              { role: "user", content: prompt }
+            ],
+            response_format: { type: "json_object" }
           })
         };
     }
