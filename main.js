@@ -38,10 +38,10 @@ var DEFAULT_SETTINGS = {
     cerebras: ""
   },
   selectedModel: {
-    anthropic: "claude-sonnet-4.6-20260217",
-    openai: "gpt-5.4",
-    gemini: "gemini-3.1-pro",
-    cerebras: "qwen-3-32b"
+    anthropic: "claude-sonnet-4-20250514",
+    openai: "gpt-4o",
+    gemini: "gemini-1.5-pro",
+    cerebras: "llama-3.3-70b"
   },
   autoAnalyze: true,
   autoAnalyzeDelay: 1500,
@@ -52,31 +52,29 @@ var DEFAULT_SETTINGS = {
 };
 var AVAILABLE_MODELS = {
   anthropic: [
-    "claude-opus-4.6-20260205",
-    "claude-sonnet-4.6-20260217",
-    "claude-opus-4.5-20251124",
-    "claude-sonnet-4.5-20250929",
-    "claude-haiku-4.5-20251015"
+    "claude-sonnet-4-20250514",
+    "claude-opus-4-20250514",
+    "claude-3-5-sonnet-20241022",
+    "claude-3-5-haiku-20241022",
+    "claude-3-opus-20240229"
   ],
   openai: [
-    "gpt-5.4",
-    "gpt-5.4-pro",
-    "gpt-5.3-instant",
-    "gpt-5.3-codex",
-    "gpt-5.2"
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4-turbo",
+    "gpt-4",
+    "gpt-3.5-turbo"
   ],
   gemini: [
-    "gemini-3.1-pro",
-    "gemini-3.1-flash-lite",
-    "gemini-3-flash",
-    "gemini-3-pro"
+    "gemini-1.5-pro",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-pro"
   ],
   cerebras: [
-    "qwen-3-235b-a22b-instruct",
-    "qwen-3-32b",
-    "deepseek-r1-distill-llama-70b",
-    "llama-4-scout-17b-16e-instruct",
-    "llama-3.3-70b"
+    "llama-3.3-70b",
+    "llama3.1-70b",
+    "llama3.1-8b"
   ]
 };
 var AI_PATTERNS_KO = {
@@ -521,10 +519,10 @@ var LocalAnalyzer = class {
 // src/analyzers/AIProvider.ts
 var import_obsidian = require("obsidian");
 var DEFAULT_MODELS = {
-  anthropic: "claude-sonnet-4.6-20260217",
-  openai: "gpt-5.4",
-  gemini: "gemini-3.1-pro",
-  cerebras: "qwen-3-32b"
+  anthropic: "claude-sonnet-4-20250514",
+  openai: "gpt-4o",
+  gemini: "gemini-1.5-pro",
+  cerebras: "llama-3.3-70b"
 };
 var API_ENDPOINTS = {
   anthropic: "https://api.anthropic.com/v1/messages",
