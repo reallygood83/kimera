@@ -7,10 +7,10 @@ interface AIProviderConfig {
 }
 
 const DEFAULT_MODELS: Record<AIProviderType, string> = {
-  anthropic: 'claude-sonnet-4-20250514',
-  openai: 'gpt-4.5-turbo',
-  gemini: 'gemini-2.5-pro',
-  cerebras: 'llama-4-scout-17b'
+  anthropic: 'claude-3-5-sonnet-20241022',
+  openai: 'gpt-4o',
+  gemini: 'gemini-2.0-flash',
+  cerebras: 'llama-3.3-70b'
 };
 
 const API_ENDPOINTS: Record<AIProviderType, string> = {
@@ -96,13 +96,57 @@ JSON 형식으로 응답:
 
   private async callAPI(prompt: string): Promise<unknown> {
     const requestParams = this.buildRequest(prompt);
-    const response = await requestUrl(requestParams);
     
-    if (response.status !== 200) {
-      throw new Error(`${this.provider} API error: ${response.status}`);
+    console.log(`[Kimera] ${this.provider} API 호출 시작 - 모델: ${this.model}`);
+    
+    try {
+      const response = await requestUrl(requestParams);
+      
+      console.log(`[Kimera] ${this.provider} 응답 상태: ${response.status}`);
+      
+      if (response.status !== 200) {
+        let errorMsg = `HTTP ${response.status}`;
+        try {
+          const errorBody = response.json as Record<string, unknown>;
+          errorMsg = this.extractErrorMessage(errorBody);
+        } catch {
+          errorMsg = response.text || `HTTP ${response.status}`;
+        }
+        console.error(`[Kimera] API 에러:`, errorMsg);
+        throw new Error(`${this.provider} 오류: ${errorMsg}`);
+      }
+      
+      console.log(`[Kimera] ${this.provider} API 성공`);
+      return response.json;
+    } catch (error) {
+      console.error(`[Kimera] API 호출 실패:`, error);
+      if (error instanceof Error) {
+        if (error.message.includes('오류')) {
+          throw error;
+        }
+        if (error.message.includes('net::') || error.message.includes('CORS')) {
+          throw new Error(`${this.provider} 네트워크 오류 - 인터넷 연결 또는 API 엔드포인트 확인`);
+        }
+        throw new Error(`${this.provider} 연결 실패: ${error.message}`);
+      }
+      throw new Error(`${this.provider} 알 수 없는 오류`);
     }
-    
-    return response.json;
+  }
+
+  private extractErrorMessage(errorBody: Record<string, unknown>): string {
+    if (this.provider === 'anthropic') {
+      const err = errorBody.error as Record<string, string> | undefined;
+      return err?.message || JSON.stringify(errorBody);
+    }
+    if (this.provider === 'openai' || this.provider === 'cerebras') {
+      const err = errorBody.error as Record<string, string> | undefined;
+      return err?.message || JSON.stringify(errorBody);
+    }
+    if (this.provider === 'gemini') {
+      const err = errorBody.error as Record<string, string> | undefined;
+      return err?.message || JSON.stringify(errorBody);
+    }
+    return JSON.stringify(errorBody);
   }
 
   private buildRequest(prompt: string): RequestUrlParam {

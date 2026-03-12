@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import WriteGuardPlugin from '../main';
-import { AIProviderType } from '../types';
+import { AIProviderType, AVAILABLE_MODELS } from '../types';
 
 export class WriteGuardSettingTab extends PluginSettingTab {
   plugin: WriteGuardPlugin;
@@ -152,32 +152,6 @@ export class WriteGuardSettingTab extends PluginSettingTab {
   }
 
   private getModelsForProvider(provider: AIProviderType): string[] {
-    const models: Record<AIProviderType, string[]> = {
-      anthropic: [
-        'claude-sonnet-4-20250514',
-        'claude-opus-4-20250514',
-        'claude-3-5-sonnet-20241022',
-        'claude-3-5-haiku-20241022'
-      ],
-      openai: [
-        'gpt-4.5-turbo',
-        'gpt-4.1',
-        'gpt-4o',
-        'gpt-4o-mini',
-        'o3-mini'
-      ],
-      gemini: [
-        'gemini-2.5-pro',
-        'gemini-2.5-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-pro'
-      ],
-      cerebras: [
-        'llama-4-scout-17b',
-        'llama-3.3-70b',
-        'llama-3.1-8b'
-      ]
-    };
-    return models[provider];
+    return AVAILABLE_MODELS[provider];
   }
 }

@@ -38,10 +38,10 @@ var DEFAULT_SETTINGS = {
     cerebras: ""
   },
   selectedModel: {
-    anthropic: "claude-sonnet-4-20250514",
-    openai: "gpt-4.5-turbo",
-    gemini: "gemini-2.5-pro",
-    cerebras: "llama-4-scout-17b"
+    anthropic: "claude-3-5-sonnet-20241022",
+    openai: "gpt-4o",
+    gemini: "gemini-2.0-flash",
+    cerebras: "llama-3.3-70b"
   },
   autoAnalyze: true,
   autoAnalyzeDelay: 1500,
@@ -49,6 +49,29 @@ var DEFAULT_SETTINGS = {
   showInlineHighlights: true,
   showSidePanel: true,
   language: "ko"
+};
+var AVAILABLE_MODELS = {
+  anthropic: [
+    "claude-3-5-sonnet-20241022",
+    "claude-3-5-haiku-20241022",
+    "claude-3-opus-20240229",
+    "claude-3-sonnet-20240229"
+  ],
+  openai: [
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4-turbo",
+    "gpt-3.5-turbo"
+  ],
+  gemini: [
+    "gemini-2.0-flash",
+    "gemini-1.5-pro",
+    "gemini-1.5-flash"
+  ],
+  cerebras: [
+    "llama-3.3-70b",
+    "llama-3.1-8b"
+  ]
 };
 var AI_PATTERNS_KO = {
   clicheStarters: [
@@ -492,10 +515,10 @@ var LocalAnalyzer = class {
 // src/analyzers/AIProvider.ts
 var import_obsidian = require("obsidian");
 var DEFAULT_MODELS = {
-  anthropic: "claude-sonnet-4-20250514",
-  openai: "gpt-4.5-turbo",
-  gemini: "gemini-2.5-pro",
-  cerebras: "llama-4-scout-17b"
+  anthropic: "claude-3-5-sonnet-20241022",
+  openai: "gpt-4o",
+  gemini: "gemini-2.0-flash",
+  cerebras: "llama-3.3-70b"
 };
 var API_ENDPOINTS = {
   anthropic: "https://api.anthropic.com/v1/messages",
@@ -570,11 +593,51 @@ JSON \uD615\uC2DD\uC73C\uB85C \uC751\uB2F5:
   }
   async callAPI(prompt) {
     const requestParams = this.buildRequest(prompt);
-    const response = await (0, import_obsidian.requestUrl)(requestParams);
-    if (response.status !== 200) {
-      throw new Error(`${this.provider} API error: ${response.status}`);
+    console.log(`[Kimera] ${this.provider} API \uD638\uCD9C \uC2DC\uC791 - \uBAA8\uB378: ${this.model}`);
+    try {
+      const response = await (0, import_obsidian.requestUrl)(requestParams);
+      console.log(`[Kimera] ${this.provider} \uC751\uB2F5 \uC0C1\uD0DC: ${response.status}`);
+      if (response.status !== 200) {
+        let errorMsg = `HTTP ${response.status}`;
+        try {
+          const errorBody = response.json;
+          errorMsg = this.extractErrorMessage(errorBody);
+        } catch (e) {
+          errorMsg = response.text || `HTTP ${response.status}`;
+        }
+        console.error(`[Kimera] API \uC5D0\uB7EC:`, errorMsg);
+        throw new Error(`${this.provider} \uC624\uB958: ${errorMsg}`);
+      }
+      console.log(`[Kimera] ${this.provider} API \uC131\uACF5`);
+      return response.json;
+    } catch (error) {
+      console.error(`[Kimera] API \uD638\uCD9C \uC2E4\uD328:`, error);
+      if (error instanceof Error) {
+        if (error.message.includes("\uC624\uB958")) {
+          throw error;
+        }
+        if (error.message.includes("net::") || error.message.includes("CORS")) {
+          throw new Error(`${this.provider} \uB124\uD2B8\uC6CC\uD06C \uC624\uB958 - \uC778\uD130\uB137 \uC5F0\uACB0 \uB610\uB294 API \uC5D4\uB4DC\uD3EC\uC778\uD2B8 \uD655\uC778`);
+        }
+        throw new Error(`${this.provider} \uC5F0\uACB0 \uC2E4\uD328: ${error.message}`);
+      }
+      throw new Error(`${this.provider} \uC54C \uC218 \uC5C6\uB294 \uC624\uB958`);
     }
-    return response.json;
+  }
+  extractErrorMessage(errorBody) {
+    if (this.provider === "anthropic") {
+      const err = errorBody.error;
+      return (err == null ? void 0 : err.message) || JSON.stringify(errorBody);
+    }
+    if (this.provider === "openai" || this.provider === "cerebras") {
+      const err = errorBody.error;
+      return (err == null ? void 0 : err.message) || JSON.stringify(errorBody);
+    }
+    if (this.provider === "gemini") {
+      const err = errorBody.error;
+      return (err == null ? void 0 : err.message) || JSON.stringify(errorBody);
+    }
+    return JSON.stringify(errorBody);
   }
   buildRequest(prompt) {
     switch (this.provider) {
@@ -855,33 +918,7 @@ var WriteGuardSettingTab = class extends import_obsidian2.PluginSettingTab {
     return names[provider];
   }
   getModelsForProvider(provider) {
-    const models = {
-      anthropic: [
-        "claude-sonnet-4-20250514",
-        "claude-opus-4-20250514",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku-20241022"
-      ],
-      openai: [
-        "gpt-4.5-turbo",
-        "gpt-4.1",
-        "gpt-4o",
-        "gpt-4o-mini",
-        "o3-mini"
-      ],
-      gemini: [
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-pro"
-      ],
-      cerebras: [
-        "llama-4-scout-17b",
-        "llama-3.3-70b",
-        "llama-3.1-8b"
-      ]
-    };
-    return models[provider];
+    return AVAILABLE_MODELS[provider];
   }
 };
 
@@ -1124,225 +1161,441 @@ var AnalysisModal = class extends import_obsidian4.Modal {
     this.afterResult = null;
     this.originalText = "";
     this.humanizedText = "";
-    this.currentView = "analysis";
+    this.currentView = "menu";
     this.plugin = plugin;
   }
   async onOpen() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("writeguard-modal");
+    this.renderMainMenu();
+  }
+  renderMainMenu() {
+    const { contentEl } = this;
+    contentEl.empty();
+    this.currentView = "menu";
+    const header = contentEl.createDiv("wg-modal-header");
+    header.createEl("h2", { text: "Kimera" });
+    const settingsBtn = header.createEl("button", { cls: "wg-settings-btn" });
+    settingsBtn.innerHTML = "\u2699\uFE0F";
+    settingsBtn.onclick = () => this.renderSettingsView();
+    const provider = this.plugin.settings.apiProvider;
+    const hasKey = !!this.plugin.settings.apiKeys[provider];
+    const statusBar = contentEl.createDiv("wg-status-bar");
+    if (hasKey) {
+      statusBar.createEl("span", {
+        text: `\u2705 ${this.getProviderName(provider)} (${this.plugin.settings.selectedModel[provider]})`,
+        cls: "status-ok"
+      });
+    } else {
+      statusBar.createEl("span", {
+        text: "\u26A0\uFE0F API \uD0A4\uB97C \uC124\uC815\uD558\uC138\uC694",
+        cls: "status-warn"
+      });
+    }
+    if (!hasKey) {
+      this.renderNoApiKeyView(contentEl);
+      return;
+    }
+    const menuGrid = contentEl.createDiv("wg-menu-grid");
+    this.createMenuCard(menuGrid, {
+      icon: "\u{1F50D}",
+      title: "AI \uBD84\uC11D",
+      desc: "AI\uAC00 \uD14D\uC2A4\uD2B8 \uBD84\uC11D",
+      action: () => this.runAIAnalysis(),
+      highlight: true
+    });
+    this.createMenuCard(menuGrid, {
+      icon: "\u2728",
+      title: "Humanize",
+      desc: "AI \uD14D\uC2A4\uD2B8 \uC790\uC5F0\uC2A4\uB7FD\uAC8C",
+      action: () => this.runFullHumanize()
+    });
+    this.createMenuCard(menuGrid, {
+      icon: "\u2702\uFE0F",
+      title: "\uC120\uD0DD \uC601\uC5ED",
+      desc: "\uC120\uD0DD\uD55C \uBD80\uBD84\uB9CC \uC218\uC815",
+      action: () => this.runSelectionHumanize()
+    });
+    this.createMenuCard(menuGrid, {
+      icon: "\u{1F4CB}",
+      title: "\uD504\uB86C\uD504\uD2B8 \uBCF5\uC0AC",
+      desc: "Claude Code\uC6A9",
+      action: () => this.showPromptOptions()
+    });
+  }
+  renderNoApiKeyView(contentEl) {
+    const noKeyDiv = contentEl.createDiv("wg-no-api-key");
+    noKeyDiv.createEl("p", { text: "AI \uBD84\uC11D\uC744 \uC0AC\uC6A9\uD558\uB824\uBA74 API \uD0A4\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4." });
+    new import_obsidian4.ButtonComponent(noKeyDiv).setButtonText("\u2699\uFE0F API \uD0A4 \uC124\uC815").setCta().onClick(() => this.renderSettingsView());
+    noKeyDiv.createEl("hr");
+    noKeyDiv.createEl("h4", { text: "\u{1F4CB} \uBB34\uB8CC \uB300\uC548: \uD504\uB86C\uD504\uD2B8 \uBCF5\uC0AC" });
+    noKeyDiv.createEl("p", {
+      text: "Claude Code\uB098 ChatGPT\uC5D0 \uD504\uB86C\uD504\uD2B8\uB97C \uBCF5\uC0AC\uD574\uC11C \uBB34\uB8CC\uB85C \uBD84\uC11D\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+      cls: "wg-hint"
+    });
+    const btnRow = noKeyDiv.createDiv("wg-btn-row");
+    new import_obsidian4.ButtonComponent(btnRow).setButtonText("\uBD84\uC11D \uD504\uB86C\uD504\uD2B8 \uBCF5\uC0AC").onClick(() => this.copyAnalysisPrompt());
+    new import_obsidian4.ButtonComponent(btnRow).setButtonText("Humanize \uD504\uB86C\uD504\uD2B8 \uBCF5\uC0AC").onClick(() => this.copyHumanizePrompt());
+  }
+  showPromptOptions() {
+    const { contentEl } = this;
+    contentEl.empty();
+    const header = contentEl.createDiv("wg-header-row");
+    new import_obsidian4.ButtonComponent(header).setButtonText("\u2190 \uB4A4\uB85C").onClick(() => this.renderMainMenu());
+    header.createEl("h2", { text: "\u{1F4CB} \uD504\uB86C\uD504\uD2B8 \uBCF5\uC0AC" });
+    const desc = contentEl.createDiv("wg-prompt-desc");
+    desc.createEl("p", { text: "Claude Code, ChatGPT \uB4F1\uC5D0 \uBD99\uC5EC\uB123\uAE30\uD558\uC138\uC694." });
+    const btnCol = contentEl.createDiv("wg-btn-col");
+    new import_obsidian4.ButtonComponent(btnCol).setButtonText("\u{1F50D} \uBD84\uC11D \uD504\uB86C\uD504\uD2B8 \uBCF5\uC0AC").setCta().onClick(() => this.copyAnalysisPrompt());
+    new import_obsidian4.ButtonComponent(btnCol).setButtonText("\u2728 Humanize \uD504\uB86C\uD504\uD2B8 \uBCF5\uC0AC").onClick(() => this.copyHumanizePrompt());
+  }
+  createMenuCard(container, opts) {
+    const card = container.createDiv("wg-menu-card");
+    if (opts.highlight)
+      card.addClass("highlight");
+    if (opts.disabled)
+      card.addClass("disabled");
+    card.createEl("span", { text: opts.icon, cls: "wg-card-icon" });
+    card.createEl("span", { text: opts.title, cls: "wg-card-title" });
+    card.createEl("span", { text: opts.desc, cls: "wg-card-desc" });
+    if (!opts.disabled) {
+      card.onclick = opts.action;
+    }
+  }
+  renderSettingsView() {
+    const { contentEl } = this;
+    contentEl.empty();
+    this.currentView = "settings";
+    const header = contentEl.createDiv("wg-header-row");
+    new import_obsidian4.ButtonComponent(header).setButtonText("\u2190 \uB4A4\uB85C").onClick(() => this.renderMainMenu());
+    header.createEl("h2", { text: "\u2699\uFE0F \uC124\uC815" });
+    const settingsContainer = contentEl.createDiv("wg-settings-container");
+    new import_obsidian4.Setting(settingsContainer).setName("AI \uC81C\uACF5\uC790").addDropdown((dropdown) => {
+      dropdown.addOption("anthropic", "Anthropic (Claude)").addOption("openai", "OpenAI (GPT)").addOption("gemini", "Google (Gemini)").addOption("cerebras", "Cerebras (Llama)").setValue(this.plugin.settings.apiProvider).onChange(async (value) => {
+        this.plugin.settings.apiProvider = value;
+        await this.plugin.saveSettings();
+        this.renderSettingsView();
+      });
+    });
+    const provider = this.plugin.settings.apiProvider;
+    new import_obsidian4.Setting(settingsContainer).setName("API \uD0A4").setDesc(this.plugin.settings.apiKeys[provider] ? "\u2705 \uC124\uC815\uB428" : "\u274C \uBBF8\uC124\uC815").addText((text) => {
+      text.setPlaceholder("sk-... \uB610\uB294 API \uD0A4").setValue(this.plugin.settings.apiKeys[provider]).onChange(async (value) => {
+        this.plugin.settings.apiKeys[provider] = value;
+        await this.plugin.saveSettings();
+      });
+      text.inputEl.type = "password";
+      text.inputEl.style.width = "200px";
+    });
+    new import_obsidian4.Setting(settingsContainer).setName("\uBAA8\uB378").addDropdown((dropdown) => {
+      AVAILABLE_MODELS[provider].forEach((model) => {
+        dropdown.addOption(model, model);
+      });
+      dropdown.setValue(this.plugin.settings.selectedModel[provider]).onChange(async (value) => {
+        this.plugin.settings.selectedModel[provider] = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    settingsContainer.createEl("hr");
+    new import_obsidian4.Setting(settingsContainer).setName("\uC5B8\uC5B4").addDropdown((dropdown) => {
+      dropdown.addOption("ko", "\uD55C\uAD6D\uC5B4").addOption("en", "English").setValue(this.plugin.settings.language).onChange(async (value) => {
+        this.plugin.settings.language = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    const apiLinks = settingsContainer.createDiv("wg-api-links");
+    apiLinks.createEl("h4", { text: "\u{1F517} API \uD0A4 \uBC1C\uAE09 \uB9C1\uD06C" });
+    const linkList = apiLinks.createEl("ul");
+    const links = [
+      { name: "Anthropic", url: "https://console.anthropic.com/" },
+      { name: "OpenAI", url: "https://platform.openai.com/api-keys" },
+      { name: "Google AI", url: "https://aistudio.google.com/app/apikey" },
+      { name: "Cerebras", url: "https://cloud.cerebras.ai/" }
+    ];
+    links.forEach((link) => {
+      const li = linkList.createEl("li");
+      li.createEl("a", { text: link.name, href: link.url });
+    });
+  }
+  getProviderName(provider) {
+    const names = {
+      anthropic: "Claude",
+      openai: "GPT",
+      gemini: "Gemini",
+      cerebras: "Llama"
+    };
+    return names[provider];
+  }
+  async runAIAnalysis() {
     const mdView = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
     if (!mdView) {
-      this.renderError("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      new import_obsidian4.Notice("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
       return;
     }
     this.originalText = mdView.editor.getValue();
     if (this.originalText.length < 50) {
-      this.renderError("\uD14D\uC2A4\uD2B8\uAC00 \uB108\uBB34 \uC9E7\uC2B5\uB2C8\uB2E4. (\uCD5C\uC18C 50\uC790)");
+      new import_obsidian4.Notice("\uD14D\uC2A4\uD2B8\uAC00 \uB108\uBB34 \uC9E7\uC2B5\uB2C8\uB2E4. (\uCD5C\uC18C 50\uC790)");
       return;
     }
-    this.beforeResult = this.plugin.localAnalyzer.analyze(this.originalText);
-    this.renderAnalysisView();
+    if (!this.plugin.aiProvider) {
+      new import_obsidian4.Notice("API \uD0A4\uB97C \uC124\uC815\uD574\uC8FC\uC138\uC694.");
+      this.renderSettingsView();
+      return;
+    }
+    this.showProgress("\u{1F50D} AI \uBD84\uC11D \uC911...", `${this.getProviderName(this.plugin.settings.apiProvider)}\uAC00 \uBD84\uC11D \uC911\uC785\uB2C8\uB2E4...`);
+    try {
+      this.beforeResult = await this.plugin.aiProvider.analyze(this.originalText);
+      this.renderAnalysisView();
+    } catch (error) {
+      this.showError("AI \uBD84\uC11D \uC2E4\uD328", error.message);
+    }
   }
-  renderError(message) {
+  async runFullHumanize() {
+    const mdView = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    if (!mdView) {
+      new import_obsidian4.Notice("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+    this.originalText = mdView.editor.getValue();
+    if (this.originalText.length < 50) {
+      new import_obsidian4.Notice("\uD14D\uC2A4\uD2B8\uAC00 \uB108\uBB34 \uC9E7\uC2B5\uB2C8\uB2E4. (\uCD5C\uC18C 50\uC790)");
+      return;
+    }
+    if (!this.plugin.aiProvider) {
+      const prompt = this.plugin.claudeCode.generateHumanizePrompt(this.originalText);
+      await navigator.clipboard.writeText(prompt);
+      new import_obsidian4.Notice("\u{1F4CB} Humanize \uD504\uB86C\uD504\uD2B8\uAC00 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+    this.showProgress("\u2728 Humanize \uC911...", "AI\uAC00 \uD14D\uC2A4\uD2B8\uB97C \uC790\uC5F0\uC2A4\uB7FD\uAC8C \uC218\uC815\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4...");
+    try {
+      this.humanizedText = await this.plugin.aiProvider.humanize(this.originalText);
+      if (this.plugin.aiProvider) {
+        this.beforeResult = await this.plugin.aiProvider.analyze(this.originalText);
+        this.afterResult = await this.plugin.aiProvider.analyze(this.humanizedText);
+      }
+      this.renderComparisonView();
+    } catch (error) {
+      this.showError("Humanize \uC2E4\uD328", error.message);
+    }
+  }
+  async runSelectionHumanize() {
+    const mdView = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    if (!mdView) {
+      new import_obsidian4.Notice("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+    const selectedText = mdView.editor.getSelection();
+    if (!selectedText || selectedText.length < 20) {
+      new import_obsidian4.Notice("\uD14D\uC2A4\uD2B8\uB97C \uC120\uD0DD\uD574\uC8FC\uC138\uC694. (\uCD5C\uC18C 20\uC790)");
+      return;
+    }
+    if (!this.plugin.aiProvider) {
+      const prompt = this.plugin.claudeCode.generateHumanizePrompt(selectedText);
+      await navigator.clipboard.writeText(prompt);
+      new import_obsidian4.Notice("\u{1F4CB} Humanize \uD504\uB86C\uD504\uD2B8\uAC00 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+    this.showProgress("\u2728 \uC120\uD0DD \uC601\uC5ED Humanize \uC911...", "");
+    try {
+      const humanizedText = await this.plugin.aiProvider.humanize(selectedText);
+      this.renderSelectionResult(selectedText, humanizedText);
+    } catch (error) {
+      this.showError("Humanize \uC2E4\uD328", error.message);
+    }
+  }
+  renderSelectionResult(original, humanized) {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "\u26A0\uFE0F \uC624\uB958" });
-    contentEl.createEl("p", { text: message });
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "\u2705 Humanize \uC644\uB8CC" });
+    const comparison = contentEl.createDiv("wg-text-comparison");
+    const beforeCol = comparison.createDiv("wg-text-col");
+    beforeCol.createEl("h4", { text: "\uC6D0\uBCF8" });
+    beforeCol.createEl("pre", { text: this.truncate(original, 400) });
+    const afterCol = comparison.createDiv("wg-text-col");
+    afterCol.createEl("h4", { text: "Humanized" });
+    afterCol.createEl("pre", { text: this.truncate(humanized, 400) });
+    const actionsRow = contentEl.createDiv("wg-actions-final");
+    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u2705 \uC801\uC6A9").setCta().onClick(() => {
+      const mdView = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+      if (mdView) {
+        mdView.editor.replaceSelection(humanized);
+        new import_obsidian4.Notice("\u2705 \uC801\uC6A9\uB428!");
+        this.close();
+      }
+    });
+    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u{1F4CB} \uBCF5\uC0AC").onClick(async () => {
+      await navigator.clipboard.writeText(humanized);
+      new import_obsidian4.Notice("\u{1F4CB} \uBCF5\uC0AC\uB428!");
+    });
+    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u2190 \uBA54\uB274").onClick(() => this.renderMainMenu());
+  }
+  showProgress(title, subtitle) {
+    const { contentEl } = this;
+    contentEl.empty();
+    const progressDiv = contentEl.createDiv("wg-progress-view");
+    progressDiv.createEl("h2", { text: title });
+    progressDiv.createEl("div", { cls: "wg-spinner" });
+    if (subtitle) {
+      progressDiv.createEl("p", { text: subtitle, cls: "wg-progress-status" });
+    }
+  }
+  showError(title, message) {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: `\u274C ${title}` });
+    contentEl.createEl("p", { text: message, cls: "wg-error-msg" });
+    const btnRow = contentEl.createDiv("wg-btn-row");
+    new import_obsidian4.ButtonComponent(btnRow).setButtonText("\u2699\uFE0F \uC124\uC815 \uD655\uC778").onClick(() => this.renderSettingsView());
+    new import_obsidian4.ButtonComponent(btnRow).setButtonText("\u2190 \uBA54\uB274").onClick(() => this.renderMainMenu());
+  }
+  async copyAnalysisPrompt() {
+    const mdView = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    if (!mdView) {
+      new import_obsidian4.Notice("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+    const content = mdView.editor.getValue();
+    const prompt = this.plugin.claudeCode.generateAnalysisPrompt(content);
+    await navigator.clipboard.writeText(prompt);
+    new import_obsidian4.Notice("\u{1F4CB} \uBD84\uC11D \uD504\uB86C\uD504\uD2B8 \uBCF5\uC0AC\uB428!");
+  }
+  async copyHumanizePrompt() {
+    const mdView = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    if (!mdView) {
+      new import_obsidian4.Notice("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+    const content = mdView.editor.getValue();
+    const prompt = this.plugin.claudeCode.generateHumanizePrompt(content);
+    await navigator.clipboard.writeText(prompt);
+    new import_obsidian4.Notice("\u{1F4CB} Humanize \uD504\uB86C\uD504\uD2B8 \uBCF5\uC0AC\uB428!");
   }
   renderAnalysisView() {
     const { contentEl } = this;
     contentEl.empty();
     this.currentView = "analysis";
-    contentEl.createEl("h2", { text: "\u{1F4CA} WriteGuard \uBD84\uC11D" });
+    const header = contentEl.createDiv("wg-header-row");
+    new import_obsidian4.ButtonComponent(header).setButtonText("\u2190 \uBA54\uB274").onClick(() => this.renderMainMenu());
+    header.createEl("h2", { text: "\u{1F50D} AI \uBD84\uC11D \uACB0\uACFC" });
+    if (!this.beforeResult)
+      return;
     const scoreContainer = contentEl.createDiv("wg-score-container");
-    this.renderScoreCard(scoreContainer, "\uD604\uC7AC \uC810\uC218", this.beforeResult);
-    const metricsContainer = contentEl.createDiv("wg-metrics-container");
-    this.renderMetrics(metricsContainer, this.beforeResult);
-    const issuesContainer = contentEl.createDiv("wg-issues-container");
-    this.renderIssues(issuesContainer, this.beforeResult);
+    this.renderScoreCard(scoreContainer, this.beforeResult);
+    if (this.beforeResult.issues.length > 0) {
+      const issuesContainer = contentEl.createDiv("wg-issues-container");
+      this.renderIssues(issuesContainer, this.beforeResult);
+    }
+    if (this.beforeResult.suggestions.length > 0) {
+      const suggestionsContainer = contentEl.createDiv("wg-suggestions-container");
+      this.renderSuggestions(suggestionsContainer, this.beforeResult);
+    }
     const actionsContainer = contentEl.createDiv("wg-actions-container");
-    this.renderActions(actionsContainer);
+    actionsContainer.createEl("h3", { text: "\u{1F680} \uB2E4\uC74C \uB2E8\uACC4" });
+    const btnRow = actionsContainer.createDiv("wg-btn-row");
+    new import_obsidian4.ButtonComponent(btnRow).setButtonText("\u2728 Humanize").setCta().onClick(() => this.runFullHumanize());
+    new import_obsidian4.ButtonComponent(btnRow).setButtonText("\u{1F4CB} \uD504\uB86C\uD504\uD2B8 \uBCF5\uC0AC").onClick(() => this.copyHumanizePrompt());
   }
-  renderScoreCard(container, title, result) {
+  renderScoreCard(container, result) {
     const card = container.createDiv("wg-score-card");
-    card.createEl("h3", { text: title });
     const score = result.humanScore;
-    const status = score >= 85 ? "excellent" : score >= 70 ? "good" : score >= 50 ? "warning" : "danger";
+    const status = score >= 80 ? "excellent" : score >= 60 ? "good" : score >= 40 ? "warning" : "danger";
     const scoreEl = card.createDiv("wg-score");
     scoreEl.addClass(status);
     scoreEl.createEl("span", { text: `${score}`, cls: "wg-score-value" });
     scoreEl.createEl("span", { text: "/100", cls: "wg-score-max" });
-    const statusText = {
-      excellent: "\u2705 \uB9E4\uC6B0 \uC790\uC5F0\uC2A4\uB7EC\uC6C0",
-      good: "\u{1F44D} \uC591\uD638",
-      warning: "\u26A0\uFE0F \uC218\uC815 \uD544\uC694",
-      danger: "\u{1F534} AI \uAC10\uC9C0 \uC704\uD5D8"
+    const statusTexts = {
+      excellent: "\u2705 \uC790\uC5F0\uC2A4\uB7EC\uC6C0 - AI \uD0D0\uC9C0 \uC6B0\uD68C \uAC00\uB2A5",
+      good: "\u{1F44D} \uC591\uD638 - \uC57D\uAC04\uC758 \uC218\uC815 \uAD8C\uC7A5",
+      warning: "\u26A0\uFE0F AI \uC758\uC2EC - \uC218\uC815 \uD544\uC694",
+      danger: "\u{1F534} AI \uAC10\uC9C0 \uC704\uD5D8 - Humanize \uD544\uC218"
     };
-    card.createEl("p", { text: statusText[status], cls: `wg-status ${status}` });
-  }
-  renderMetrics(container, result) {
-    container.createEl("h3", { text: "\u{1F4C8} \uC138\uBD80 \uC9C0\uD45C" });
-    const grid = container.createDiv("wg-metrics-grid");
-    const m = result.metrics;
-    const metrics = [
-      { label: "Perplexity (\uD63C\uB780\uB3C4)", value: m.perplexity, good: true, desc: "\uB192\uC744\uC218\uB85D \uC778\uAC04\uC801" },
-      { label: "Burstiness (\uD3ED\uBC1C\uC131)", value: m.burstiness, good: true, desc: "\uB192\uC744\uC218\uB85D \uC790\uC5F0\uC2A4\uB7EC\uC6C0" },
-      { label: "\uC5B4\uD718 \uB2E4\uC591\uC131", value: m.vocabularyDiversity, good: true, desc: "\uB2E4\uC591\uD55C \uB2E8\uC5B4 \uC0AC\uC6A9" },
-      { label: "\uBB38\uC7A5 \uBCC0\uD654\uB3C4", value: m.sentenceVariance, good: true, desc: "\uBB38\uC7A5 \uAE38\uC774 \uB2E4\uC591\uC131" },
-      { label: "\uAC1C\uC778\uD654 \uC218\uC900", value: m.personalExpressionScore, good: true, desc: "\uAC1C\uC778 \uACBD\uD5D8/\uAC10\uC815" },
-      { label: "AI \uD328\uD134", value: m.aiPatternCount, good: false, desc: "\uC801\uC744\uC218\uB85D \uC88B\uC74C" },
-      { label: "\uBC18\uBCF5\uB960", value: m.repetitionRate, good: false, desc: "\uB0AE\uC744\uC218\uB85D \uC88B\uC74C" }
-    ];
-    metrics.forEach(({ label, value, good, desc }) => {
-      const item = grid.createDiv("wg-metric-item");
-      item.createEl("span", { text: label, cls: "wg-metric-label" });
-      const valueStatus = good ? value >= 60 ? "good" : value >= 40 ? "warning" : "danger" : value <= 20 ? "good" : value <= 50 ? "warning" : "danger";
-      item.createEl("span", {
-        text: `${Math.round(value)}${good ? "%" : label === "AI \uD328\uD134" ? "\uAC1C" : "%"}`,
-        cls: `wg-metric-value ${valueStatus}`
-      });
-      item.createEl("span", { text: desc, cls: "wg-metric-desc" });
-    });
+    card.createEl("p", { text: statusTexts[status], cls: `wg-status ${status}` });
   }
   renderIssues(container, result) {
-    if (result.issues.length === 0)
-      return;
-    container.createEl("h3", { text: `\u{1F50D} \uBC1C\uACAC\uB41C \uBB38\uC81C (${result.issues.length}\uAC1C)` });
+    container.createEl("h3", { text: `\u{1F50D} \uBB38\uC81C\uC810 (${result.issues.length}\uAC1C)` });
     const list = container.createDiv("wg-issues-list");
     result.issues.slice(0, 5).forEach((issue) => {
       const item = list.createDiv("wg-issue-item");
       item.addClass(issue.severity);
-      const badge = item.createEl("span", {
-        text: issue.severity === "high" ? "\uB192\uC74C" : issue.severity === "medium" ? "\uC911\uAC04" : "\uB0AE\uC74C",
-        cls: `wg-severity-badge ${issue.severity}`
+      item.createEl("span", {
+        text: `"${issue.text.substring(0, 50)}..."`,
+        cls: "wg-issue-text"
       });
-      item.createEl("span", { text: `"${issue.text.substring(0, 40)}..."`, cls: "wg-issue-text" });
       item.createEl("p", { text: issue.description, cls: "wg-issue-desc" });
     });
   }
-  renderActions(container) {
-    container.createEl("h3", { text: "\u{1F680} \uC791\uC5C5" });
-    const btnRow = container.createDiv("wg-btn-row");
-    new import_obsidian4.ButtonComponent(btnRow).setButtonText("\u2728 \uC6D0\uD074\uB9AD Humanize").setCta().onClick(() => this.runHumanize());
-    new import_obsidian4.ButtonComponent(btnRow).setButtonText("\u{1F4CB} Claude Code \uD504\uB86C\uD504\uD2B8").onClick(() => this.copyPrompt());
-    if (this.plugin.aiProvider) {
-      new import_obsidian4.ButtonComponent(btnRow).setButtonText("\u{1F916} AI \uC815\uBC00 \uBD84\uC11D").onClick(() => this.runAIAnalysis());
-    }
-  }
-  async runHumanize() {
-    if (!this.plugin.aiProvider) {
-      new import_obsidian4.Notice("API \uD0A4\uAC00 \uC124\uC815\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.");
-      const prompt = this.plugin.claudeCode.generateHumanizePrompt(this.originalText);
-      await navigator.clipboard.writeText(prompt);
-      new import_obsidian4.Notice("\u{1F4CB} Humanize \uD504\uB86C\uD504\uD2B8\uAC00 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. Claude Code\uC5D0 \uBD99\uC5EC\uB123\uAE30\uD558\uC138\uC694.");
-      return;
-    }
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.createEl("h2", { text: "\u2728 Humanize \uC9C4\uD589 \uC911..." });
-    const progress = contentEl.createDiv("wg-progress");
-    const steps = ["\uBD84\uC11D \uC911", "AI \uCC98\uB9AC \uC911", "\uAC80\uC99D \uC911", "\uC644\uB8CC"];
-    const progressBar = progress.createDiv("wg-progress-bar");
-    const statusEl = progress.createEl("p", { cls: "wg-progress-status" });
-    try {
-      statusEl.setText("\u{1F50D} \uC6D0\uBCF8 \uBD84\uC11D \uC644\uB8CC");
-      progressBar.style.width = "25%";
-      await this.delay(500);
-      statusEl.setText("\u{1F916} AI Humanize \uCC98\uB9AC \uC911...");
-      progressBar.style.width = "50%";
-      this.humanizedText = await this.plugin.aiProvider.humanize(this.originalText);
-      statusEl.setText("\u{1F4CA} \uACB0\uACFC \uAC80\uC99D \uC911...");
-      progressBar.style.width = "75%";
-      this.afterResult = this.plugin.localAnalyzer.analyze(this.humanizedText);
-      progressBar.style.width = "100%";
-      statusEl.setText("\u2705 \uC644\uB8CC!");
-      await this.delay(500);
-      this.renderComparisonView();
-    } catch (error) {
-      contentEl.empty();
-      contentEl.createEl("h2", { text: "\u274C \uC624\uB958 \uBC1C\uC0DD" });
-      contentEl.createEl("p", { text: error.message });
-      new import_obsidian4.ButtonComponent(contentEl).setButtonText("\u2190 \uB3CC\uC544\uAC00\uAE30").onClick(() => this.renderAnalysisView());
-    }
+  renderSuggestions(container, result) {
+    container.createEl("h3", { text: "\u{1F4A1} \uAC1C\uC120 \uC81C\uC548" });
+    const list = container.createDiv("wg-suggestions-list");
+    result.suggestions.slice(0, 5).forEach((sug) => {
+      const item = list.createDiv("wg-suggestion-item");
+      if (sug.original && sug.suggested) {
+        item.createEl("div", { text: `\u274C ${sug.original}`, cls: "wg-sug-original" });
+        item.createEl("div", { text: `\u2705 ${sug.suggested}`, cls: "wg-sug-suggested" });
+      }
+      item.createEl("p", { text: sug.reason, cls: "wg-sug-reason" });
+    });
   }
   renderComparisonView() {
     const { contentEl } = this;
     contentEl.empty();
     this.currentView = "comparison";
-    contentEl.createEl("h2", { text: "\u{1F4CA} Before / After \uBE44\uAD50" });
+    contentEl.createEl("h2", { text: "\u{1F4CA} Before / After" });
     const comparison = contentEl.createDiv("wg-comparison");
     const beforeCol = comparison.createDiv("wg-compare-col");
-    beforeCol.createEl("h3", { text: "\u{1F534} Before" });
-    this.renderCompareScore(beforeCol, this.beforeResult);
+    beforeCol.createEl("h4", { text: "Before" });
+    if (this.beforeResult) {
+      this.renderCompareScore(beforeCol, this.beforeResult);
+    }
     const arrow = comparison.createDiv("wg-compare-arrow");
-    const diff = this.afterResult.humanScore - this.beforeResult.humanScore;
-    arrow.createEl("span", { text: `+${diff}\uC810`, cls: diff > 0 ? "positive" : "neutral" });
+    if (this.beforeResult && this.afterResult) {
+      const diff = this.afterResult.humanScore - this.beforeResult.humanScore;
+      arrow.createEl("span", {
+        text: diff > 0 ? `+${diff}` : `${diff}`,
+        cls: diff > 0 ? "positive" : "neutral"
+      });
+    }
     arrow.createEl("span", { text: "\u2192", cls: "arrow-icon" });
     const afterCol = comparison.createDiv("wg-compare-col");
-    afterCol.createEl("h3", { text: "\u{1F7E2} After" });
-    this.renderCompareScore(afterCol, this.afterResult);
+    afterCol.createEl("h4", { text: "After" });
+    if (this.afterResult) {
+      this.renderCompareScore(afterCol, this.afterResult);
+    }
     const textComparison = contentEl.createDiv("wg-text-comparison");
     const beforeText = textComparison.createDiv("wg-text-col");
     beforeText.createEl("h4", { text: "\uC6D0\uBCF8" });
-    beforeText.createEl("pre", { text: this.truncate(this.originalText, 500) });
+    beforeText.createEl("pre", { text: this.truncate(this.originalText, 400) });
     const afterText = textComparison.createDiv("wg-text-col");
     afterText.createEl("h4", { text: "Humanized" });
-    afterText.createEl("pre", { text: this.truncate(this.humanizedText, 500) });
+    afterText.createEl("pre", { text: this.truncate(this.humanizedText, 400) });
     const actionsRow = contentEl.createDiv("wg-actions-final");
-    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u2705 \uC801\uC6A9\uD558\uAE30").setCta().onClick(() => this.applyHumanized());
-    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u{1F4CB} \uBCF5\uC0AC\uD558\uAE30").onClick(async () => {
+    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u2705 \uC801\uC6A9").setCta().onClick(() => this.applyHumanized());
+    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u{1F4CB} \uBCF5\uC0AC").onClick(async () => {
       await navigator.clipboard.writeText(this.humanizedText);
-      new import_obsidian4.Notice("\u{1F4CB} Humanized \uD14D\uC2A4\uD2B8\uAC00 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!");
+      new import_obsidian4.Notice("\u{1F4CB} \uBCF5\uC0AC\uB428!");
     });
-    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u2190 \uB2E4\uC2DC \uBD84\uC11D").onClick(() => this.renderAnalysisView());
+    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u2190 \uBA54\uB274").onClick(() => this.renderMainMenu());
   }
   renderCompareScore(container, result) {
     const score = result.humanScore;
-    const status = score >= 85 ? "excellent" : score >= 70 ? "good" : score >= 50 ? "warning" : "danger";
+    const status = score >= 80 ? "excellent" : score >= 60 ? "good" : score >= 40 ? "warning" : "danger";
     const scoreEl = container.createDiv("wg-compare-score");
     scoreEl.addClass(status);
     scoreEl.createEl("span", { text: `${score}`, cls: "score-num" });
-    scoreEl.createEl("span", { text: "/100" });
-    const metrics = container.createDiv("wg-compare-metrics");
-    metrics.createEl("div", { text: `Perplexity: ${result.metrics.perplexity}%` });
-    metrics.createEl("div", { text: `Burstiness: ${result.metrics.burstiness}%` });
-    metrics.createEl("div", { text: `AI\uD328\uD134: ${result.metrics.aiPatternCount}\uAC1C` });
   }
   applyHumanized() {
     const mdView = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
     if (mdView) {
       mdView.editor.setValue(this.humanizedText);
-      new import_obsidian4.Notice("\u2705 Humanized \uD14D\uC2A4\uD2B8\uAC00 \uC801\uC6A9\uB418\uC5C8\uC2B5\uB2C8\uB2E4!");
+      new import_obsidian4.Notice("\u2705 \uC801\uC6A9\uB428!");
       this.close();
-    }
-  }
-  async copyPrompt() {
-    const prompt = this.plugin.claudeCode.generateAnalysisPrompt(this.originalText);
-    await navigator.clipboard.writeText(prompt);
-    new import_obsidian4.Notice("\u{1F4CB} \uD504\uB86C\uD504\uD2B8\uAC00 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!");
-  }
-  async runAIAnalysis() {
-    if (!this.plugin.aiProvider)
-      return;
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.createEl("h2", { text: "\u{1F916} AI \uC815\uBC00 \uBD84\uC11D \uC911..." });
-    try {
-      this.beforeResult = await this.plugin.aiProvider.analyze(this.originalText);
-      this.renderAnalysisView();
-      new import_obsidian4.Notice("\u2705 AI \uBD84\uC11D \uC644\uB8CC!");
-    } catch (error) {
-      contentEl.empty();
-      this.renderError(error.message);
     }
   }
   truncate(text, maxLength) {
     if (text.length <= maxLength)
       return text;
     return text.substring(0, maxLength) + "...";
-  }
-  delay(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
   onClose() {
     const { contentEl } = this;

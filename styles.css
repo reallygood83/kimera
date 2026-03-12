@@ -508,3 +508,341 @@
 .wg-actions-final button {
   min-width: 120px;
 }
+
+/* Modal Header */
+.wg-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.wg-modal-header h2 {
+  margin: 0;
+}
+
+.wg-settings-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.wg-settings-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* Status Bar */
+.wg-status-bar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.wg-status-bar .status-ok {
+  color: #22c55e;
+  font-size: 13px;
+}
+
+.wg-status-bar .status-warn {
+  color: #f59e0b;
+  font-size: 13px;
+}
+
+/* Menu Grid */
+.wg-menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.wg-menu-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  background: var(--background-secondary);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+  text-align: center;
+}
+
+.wg-menu-card:hover {
+  background: var(--background-modifier-hover);
+  transform: translateY(-2px);
+}
+
+.wg-menu-card.highlight {
+  border-color: var(--interactive-accent);
+  background: var(--background-primary-alt);
+}
+
+.wg-menu-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wg-menu-card.disabled:hover {
+  transform: none;
+}
+
+.wg-card-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.wg-card-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.wg-card-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Prompt Section */
+.wg-prompt-section {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 16px;
+}
+
+.wg-prompt-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.wg-prompt-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.wg-prompt-btns button {
+  flex: 1;
+}
+
+/* Header Row */
+.wg-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.wg-header-row h2 {
+  margin: 0;
+  flex: 1;
+}
+
+/* Settings Container */
+.wg-settings-container {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.wg-settings-container hr {
+  border: none;
+  border-top: 1px solid var(--background-modifier-border);
+  margin: 16px 0;
+}
+
+.wg-api-links {
+  margin-top: 20px;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+}
+
+.wg-api-links h4 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+}
+
+.wg-api-links ul {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12px;
+}
+
+.wg-api-links li {
+  margin-bottom: 4px;
+}
+
+.wg-api-links a {
+  color: var(--text-accent);
+}
+
+/* Progress View */
+.wg-progress-view {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.wg-progress-view h2 {
+  margin-bottom: 20px;
+}
+
+.wg-spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 20px;
+  border: 3px solid var(--background-modifier-border);
+  border-top-color: var(--interactive-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Selection Preview */
+.wg-selection-preview {
+  margin-bottom: 16px;
+}
+
+.wg-selection-preview pre {
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  font-size: 12px;
+  max-height: 150px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wg-inline-score {
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.score-badge {
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.score-badge.good { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+.score-badge.warning { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+.score-badge.danger { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+/* Error Message */
+.wg-error-msg {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 16px 0;
+}
+
+/* No Issues */
+.wg-no-issues {
+  color: #22c55e;
+  text-align: center;
+  padding: 16px;
+}
+
+/* Target Hint */
+.wg-target-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+/* Menu Subtitle */
+.wg-menu-subtitle {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: -12px 0 16px 0;
+}
+
+/* Footer Info */
+.wg-footer-info {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.wg-no-api-key {
+  text-align: center;
+  padding: 20px;
+}
+
+.wg-no-api-key p {
+  margin-bottom: 16px;
+}
+
+.wg-no-api-key hr {
+  border: none;
+  border-top: 1px solid var(--background-modifier-border);
+  margin: 20px 0;
+}
+
+.wg-no-api-key h4 {
+  margin-bottom: 8px;
+}
+
+.wg-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.wg-btn-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wg-btn-col button {
+  width: 100%;
+}
+
+.wg-prompt-desc {
+  text-align: center;
+  margin-bottom: 20px;
+  color: var(--text-muted);
+}
+
+.wg-suggestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wg-suggestion-item {
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+}
+
+.wg-sug-original {
+  color: #ef4444;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.wg-sug-suggested {
+  color: #22c55e;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.wg-sug-reason {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
