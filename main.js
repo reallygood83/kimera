@@ -38,10 +38,10 @@ var DEFAULT_SETTINGS = {
     cerebras: ""
   },
   selectedModel: {
-    anthropic: "claude-sonnet-4-20250514",
-    openai: "gpt-4o",
-    gemini: "gemini-1.5-pro",
-    cerebras: "llama-3.3-70b"
+    anthropic: "claude-sonnet-4-6-20260217",
+    openai: "gpt-5.3",
+    gemini: "gemini-3.1-pro-preview",
+    cerebras: "deepseek-r1-distill-llama-70b"
   },
   autoAnalyze: true,
   autoAnalyzeDelay: 1500,
@@ -52,29 +52,54 @@ var DEFAULT_SETTINGS = {
 };
 var AVAILABLE_MODELS = {
   anthropic: [
-    "claude-sonnet-4-20250514",
+    // Claude 4.6 (Feb 2026 - Latest)
+    "claude-opus-4-6-20260205",
+    "claude-sonnet-4-6-20260217",
+    // Claude 4.5 (2025)
+    "claude-opus-4-5-20251124",
+    "claude-sonnet-4-5-20250929",
+    // Claude 4 (May 2025)
     "claude-opus-4-20250514",
-    "claude-3-5-sonnet-20241022",
-    "claude-3-5-haiku-20241022",
-    "claude-3-opus-20240229"
+    "claude-sonnet-4-20250514"
   ],
   openai: [
-    "gpt-4o",
-    "gpt-4o-mini",
-    "gpt-4-turbo",
-    "gpt-4",
-    "gpt-3.5-turbo"
+    // GPT-5.4 (Mar 2026 - Latest)
+    "gpt-5.4",
+    "gpt-5.4-pro",
+    // GPT-5.3 (Feb-Mar 2026)
+    "gpt-5.3",
+    "gpt-5.3-codex",
+    // GPT-5.2 (Dec 2025)
+    "gpt-5.2",
+    // GPT-5 (Aug 2025)
+    "gpt-5",
+    "gpt-5-mini",
+    // o-series Reasoning
+    "o3",
+    "o3-mini",
+    "o4-mini"
   ],
   gemini: [
-    "gemini-1.5-pro",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
-    "gemini-pro"
+    // Gemini 3.1 (Feb-Mar 2026 - Latest)
+    "gemini-3.1-pro-preview",
+    "gemini-3.1-flash-lite-preview",
+    // Gemini 3 (Nov 2025)
+    "gemini-3-flash",
+    "gemini-3-pro",
+    // Gemini 2.5 (GA Jun 2025)
+    "gemini-2.5-pro",
+    "gemini-2.5-flash"
   ],
   cerebras: [
+    // Qwen 3 (Latest)
+    "qwen-3-235b-a22b-instruct",
+    // DeepSeek R1
+    "deepseek-r1-distill-llama-70b",
+    // Llama 4
+    "llama-4-scout-17b-16e-instruct",
+    // Llama 3.3
     "llama-3.3-70b",
-    "llama3.1-70b",
-    "llama3.1-8b"
+    "llama-3.1-8b"
   ]
 };
 var AI_PATTERNS_KO = {
@@ -519,10 +544,10 @@ var LocalAnalyzer = class {
 // src/analyzers/AIProvider.ts
 var import_obsidian = require("obsidian");
 var DEFAULT_MODELS = {
-  anthropic: "claude-sonnet-4-20250514",
-  openai: "gpt-4o",
-  gemini: "gemini-1.5-pro",
-  cerebras: "llama-3.3-70b"
+  anthropic: "claude-sonnet-4-6-20260217",
+  openai: "gpt-5.3",
+  gemini: "gemini-3.1-pro-preview",
+  cerebras: "deepseek-r1-distill-llama-70b"
 };
 var API_ENDPOINTS = {
   anthropic: "https://api.anthropic.com/v1/messages",
