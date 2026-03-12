@@ -139,6 +139,8 @@ export class AnalysisView extends ItemView {
 
     const grid = section.createDiv('metrics-grid');
 
+    this.renderMetric(grid, 'Perplexity', metrics.perplexity, '%', false, '혼란도 - 높을수록 인간적');
+    this.renderMetric(grid, 'Burstiness', metrics.burstiness, '%', false, '폭발성 - 높을수록 자연스러움');
     this.renderMetric(grid, '어휘 다양성', metrics.vocabularyDiversity, '%');
     this.renderMetric(grid, '문장 변화도', metrics.sentenceVariance, '');
     this.renderMetric(grid, 'AI 패턴', metrics.aiPatternCount, '개', true);
@@ -146,8 +148,10 @@ export class AnalysisView extends ItemView {
     this.renderMetric(grid, '반복률', metrics.repetitionRate, '%', true);
   }
 
-  private renderMetric(container: Element, label: string, value: number, unit: string, inverse = false) {
+  private renderMetric(container: Element, label: string, value: number, unit: string, inverse = false, tooltip?: string) {
     const item = container.createDiv('metric-item');
+    if (tooltip) item.setAttribute('title', tooltip);
+    
     const status = inverse 
       ? (value <= 20 ? 'good' : value <= 50 ? 'warning' : 'danger')
       : (value >= 60 ? 'good' : value >= 40 ? 'warning' : 'danger');

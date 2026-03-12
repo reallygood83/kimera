@@ -18,9 +18,6 @@ export class LocalAnalyzer {
     this.language = language;
   }
   
-  /**
-   * 텍스트 전체 분석
-   */
   analyze(text: string): AnalysisResult {
     const cleanText = this.normalizeText(text);
     
@@ -28,26 +25,27 @@ export class LocalAnalyzer {
       return this.createEmptyResult('텍스트가 너무 짧습니다.');
     }
     
-    // 각 지표 계산
     const vocabularyDiversity = this.calculateTTR(cleanText);
     const sentenceVariance = this.calculateSentenceVariance(cleanText);
     const { count: aiPatternCount, issues: patternIssues } = this.detectAIPatterns(cleanText);
     const personalExpressionScore = this.calculatePersonalScore(cleanText);
     const repetitionRate = this.calculateRepetitionRate(cleanText);
+    const perplexity = this.calculatePerplexity(cleanText);
+    const burstiness = this.calculateBurstiness(cleanText);
     
-    // 종합 Human Score 계산
     const humanScore = this.calculateHumanScore({
       vocabularyDiversity,
       sentenceVariance,
       aiPatternCount,
       personalExpressionScore,
-      repetitionRate
+      repetitionRate,
+      perplexity,
+      burstiness
     });
     
-    // 개선 제안 생성
     const suggestions = this.generateLocalSuggestions(
       cleanText,
-      { vocabularyDiversity, sentenceVariance, aiPatternCount, personalExpressionScore, repetitionRate }
+      { vocabularyDiversity, sentenceVariance, aiPatternCount, personalExpressionScore, repetitionRate, perplexity, burstiness }
     );
     
     return {
@@ -57,7 +55,9 @@ export class LocalAnalyzer {
         sentenceVariance,
         aiPatternCount,
         personalExpressionScore,
-        repetitionRate
+        repetitionRate,
+        perplexity,
+        burstiness
       },
       issues: patternIssues,
       suggestions,
@@ -195,14 +195,10 @@ export class LocalAnalyzer {
     return Math.min(100, score);
   }
   
-  /**
-   * N-gram 반복률 계산
-   */
   private calculateRepetitionRate(text: string): number {
     const words = this.tokenize(text);
     if (words.length < 10) return 0;
     
-    // 3-gram 생성
     const trigrams: string[] = [];
     for (let i = 0; i < words.length - 2; i++) {
       trigrams.push(words.slice(i, i + 3).join(' '));
@@ -211,58 +207,141 @@ export class LocalAnalyzer {
     const uniqueTrigrams = new Set(trigrams);
     const repetitionRate = 1 - (uniqueTrigrams.size / trigrams.length);
     
-    // 0-100 스케일 (낮을수록 좋음)
     return Math.round(repetitionRate * 100);
   }
   
   /**
-   * 종합 Human Score 계산
+   * Perplexity (혼란도) 계산 - AI 탐지 핵심 지표
+   * 
+   * AI 텍스트는 예측 가능한 단어를 선택해 perplexity가 낮음
+   * 인간 텍스트는 예상치 못한 단어 선택으로 perplexity가 높음
+   * 
+   * 로컬 근사 방식: 
+   * - 단어 빈도 기반 surprisal 계산
+   * - 희귀 단어, 비일상적 조합이 많을수록 높은 점수
    */
+  private calculatePerplexity(text: string): number {
+    const words = this.tokenize(text);
+    if (words.length < 20) return 50;
+    
+    const wordFreq = new Map<string, number>();
+    words.forEach(w => wordFreq.set(w, (wordFreq.get(w) || 0) + 1));
+    
+    let totalSurprisal = 0;
+    const vocab = wordFreq.size;
+    
+    for (let i = 1; i < words.length; i++) {
+      const word = words[i];
+      const freq = wordFreq.get(word) || 1;
+      const prob = freq / words.length;
+      const surprisal = -Math.log2(prob + 0.001);
+      totalSurprisal += surprisal;
+    }
+    
+    const avgSurprisal = totalSurprisal / (words.length - 1);
+    
+    const bigramUniqueness = this.calculateBigramUniqueness(words);
+    const rareWordRatio = this.calculateRareWordRatio(words, wordFreq);
+    
+    const rawPerplexity = avgSurprisal * (1 + bigramUniqueness * 0.3 + rareWordRatio * 0.2);
+    
+    const normalized = Math.min(100, Math.max(0, (rawPerplexity - 3) * 15));
+    
+    return Math.round(normalized);
+  }
+  
+  private calculateBigramUniqueness(words: string[]): number {
+    if (words.length < 2) return 0;
+    
+    const bigrams: string[] = [];
+    for (let i = 0; i < words.length - 1; i++) {
+      bigrams.push(`${words[i]} ${words[i + 1]}`);
+    }
+    
+    const unique = new Set(bigrams).size;
+    return unique / bigrams.length;
+  }
+  
+  private calculateRareWordRatio(words: string[], freqMap: Map<string, number>): number {
+    const rareWords = words.filter(w => (freqMap.get(w) || 0) === 1);
+    return rareWords.length / words.length;
+  }
+  
+  /**
+   * Burstiness (폭발성) 계산 - AI 탐지 핵심 지표
+   * 
+   * AI 텍스트: 문장 길이가 균일함 → 낮은 burstiness
+   * 인간 텍스트: 문장 길이가 들쭉날쭉 → 높은 burstiness
+   * 
+   * 계산: 문장 길이의 변동계수(CV) + 연속 문장 간 길이 차이
+   */
+  private calculateBurstiness(text: string): number {
+    const sentences = this.splitSentences(text);
+    if (sentences.length < 4) return 50;
+    
+    const lengths = sentences.map(s => this.tokenize(s).length);
+    
+    const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+    const variance = lengths.reduce((sum, len) => sum + Math.pow(len - mean, 2), 0) / lengths.length;
+    const stdDev = Math.sqrt(variance);
+    const cv = mean > 0 ? stdDev / mean : 0;
+    
+    let consecutiveDiff = 0;
+    for (let i = 1; i < lengths.length; i++) {
+      consecutiveDiff += Math.abs(lengths[i] - lengths[i - 1]);
+    }
+    const avgConsecutiveDiff = consecutiveDiff / (lengths.length - 1);
+    
+    const shortSentenceRatio = lengths.filter(l => l <= 8).length / lengths.length;
+    const longSentenceRatio = lengths.filter(l => l >= 20).length / lengths.length;
+    const extremeRatio = shortSentenceRatio + longSentenceRatio;
+    
+    const rawBurstiness = (cv * 40) + (avgConsecutiveDiff * 2) + (extremeRatio * 30);
+    
+    return Math.round(Math.min(100, Math.max(0, rawBurstiness)));
+  }
+  
   private calculateHumanScore(metrics: {
     vocabularyDiversity: number;
     sentenceVariance: number;
     aiPatternCount: number;
     personalExpressionScore: number;
     repetitionRate: number;
+    perplexity: number;
+    burstiness: number;
   }): number {
-    // 가중치 적용
     const weights = {
-      vocabularyDiversity: 0.15,
-      sentenceVariance: 0.20,
-      aiPatternPenalty: 0.25,  // 패턴당 감점
-      personalExpression: 0.25,
-      repetition: 0.15
+      vocabularyDiversity: 0.10,
+      sentenceVariance: 0.10,
+      aiPatternPenalty: 0.15,
+      personalExpression: 0.15,
+      repetition: 0.10,
+      perplexity: 0.20,
+      burstiness: 0.20
     };
     
-    let score = 50; // 기본 점수
+    let score = 50;
     
-    // 어휘 다양성 (높을수록 좋음)
     score += (metrics.vocabularyDiversity - 50) * weights.vocabularyDiversity;
-    
-    // 문장 변화도 (높을수록 좋음)
     score += (metrics.sentenceVariance - 30) * weights.sentenceVariance;
-    
-    // AI 패턴 감점 (패턴당 -5점)
     score -= metrics.aiPatternCount * 5 * weights.aiPatternPenalty;
-    
-    // 개인화 점수 (높을수록 좋음)
     score += (metrics.personalExpressionScore - 50) * weights.personalExpression;
-    
-    // 반복률 감점 (높을수록 나쁨)
     score -= metrics.repetitionRate * weights.repetition;
+    
+    score += (metrics.perplexity - 40) * weights.perplexity;
+    score += (metrics.burstiness - 40) * weights.burstiness;
     
     return Math.max(0, Math.min(100, Math.round(score)));
   }
   
-  /**
-   * 로컬 기반 개선 제안 생성
-   */
   private generateLocalSuggestions(text: string, metrics: {
     vocabularyDiversity: number;
     sentenceVariance: number;
     aiPatternCount: number;
     personalExpressionScore: number;
     repetitionRate: number;
+    perplexity: number;
+    burstiness: number;
   }): Suggestion[] {
     const suggestions: Suggestion[] = [];
     
@@ -341,9 +420,6 @@ export class LocalAnalyzer {
     }
   }
   
-  /**
-   * 빈 결과 생성
-   */
   private createEmptyResult(message: string): AnalysisResult {
     return {
       humanScore: 0,
@@ -352,7 +428,9 @@ export class LocalAnalyzer {
         sentenceVariance: 0,
         aiPatternCount: 0,
         personalExpressionScore: 0,
-        repetitionRate: 0
+        repetitionRate: 0,
+        perplexity: 0,
+        burstiness: 0
       },
       issues: [],
       suggestions: [{

@@ -5,6 +5,7 @@ import { AIProvider, ClaudeCodeIntegration } from './analyzers/AIProvider';
 import { WriteGuardSettingTab } from './ui/SettingsTab';
 import { AnalysisView, VIEW_TYPE_ANALYSIS } from './ui/AnalysisView';
 import { InlineHighlighter, createHighlighterExtension } from './ui/InlineHighlighter';
+import { AnalysisModal } from './ui/AnalysisModal';
 
 export default class WriteGuardPlugin extends Plugin {
   settings: WriteGuardSettings;
@@ -66,6 +67,12 @@ export default class WriteGuardPlugin extends Plugin {
       id: 'toggle-highlights',
       name: '인라인 하이라이트 토글',
       callback: () => this.toggleHighlights()
+    });
+
+    this.addCommand({
+      id: 'open-analysis-modal',
+      name: '분석 모달 열기 (Before/After)',
+      callback: () => this.openAnalysisModal()
     });
 
     this.addSettingTab(new WriteGuardSettingTab(this.app, this));
@@ -198,6 +205,10 @@ export default class WriteGuardPlugin extends Plugin {
         this.app.workspace.revealLeaf(leaf);
       }
     }
+  }
+
+  openAnalysisModal() {
+    new AnalysisModal(this.app, this).open();
   }
 
   toggleHighlights() {

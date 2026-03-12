@@ -8,6 +8,9 @@ export interface AnalysisResult {
     aiPatternCount: number;
     personalExpressionScore: number;
     repetitionRate: number;
+    // AI 탐지 핵심 메트릭 (CopyKiller/GPT킬러 기준)
+    perplexity: number;      // 혼란도: 낮으면 AI (너무 매끄러움), 높으면 인간
+    burstiness: number;      // 폭발성: 문장 길이 변화도, 낮으면 AI (일정함)
   };
   issues: AnalysisIssue[];
   suggestions: Suggestion[];

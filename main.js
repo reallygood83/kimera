@@ -26,7 +26,7 @@ __export(main_exports, {
   default: () => WriteGuardPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
@@ -159,9 +159,6 @@ var LocalAnalyzer = class {
   constructor(language = "ko") {
     this.language = language;
   }
-  /**
-   * 텍스트 전체 분석
-   */
   analyze(text) {
     const cleanText = this.normalizeText(text);
     if (cleanText.length < 50) {
@@ -172,16 +169,20 @@ var LocalAnalyzer = class {
     const { count: aiPatternCount, issues: patternIssues } = this.detectAIPatterns(cleanText);
     const personalExpressionScore = this.calculatePersonalScore(cleanText);
     const repetitionRate = this.calculateRepetitionRate(cleanText);
+    const perplexity = this.calculatePerplexity(cleanText);
+    const burstiness = this.calculateBurstiness(cleanText);
     const humanScore = this.calculateHumanScore({
       vocabularyDiversity,
       sentenceVariance,
       aiPatternCount,
       personalExpressionScore,
-      repetitionRate
+      repetitionRate,
+      perplexity,
+      burstiness
     });
     const suggestions = this.generateLocalSuggestions(
       cleanText,
-      { vocabularyDiversity, sentenceVariance, aiPatternCount, personalExpressionScore, repetitionRate }
+      { vocabularyDiversity, sentenceVariance, aiPatternCount, personalExpressionScore, repetitionRate, perplexity, burstiness }
     );
     return {
       humanScore,
@@ -190,7 +191,9 @@ var LocalAnalyzer = class {
         sentenceVariance,
         aiPatternCount,
         personalExpressionScore,
-        repetitionRate
+        repetitionRate,
+        perplexity,
+        burstiness
       },
       issues: patternIssues,
       suggestions,
@@ -298,9 +301,6 @@ var LocalAnalyzer = class {
       score += 10;
     return Math.min(100, score);
   }
-  /**
-   * N-gram 반복률 계산
-   */
   calculateRepetitionRate(text) {
     const words = this.tokenize(text);
     if (words.length < 10)
@@ -314,16 +314,88 @@ var LocalAnalyzer = class {
     return Math.round(repetitionRate * 100);
   }
   /**
-   * 종합 Human Score 계산
+   * Perplexity (혼란도) 계산 - AI 탐지 핵심 지표
+   * 
+   * AI 텍스트는 예측 가능한 단어를 선택해 perplexity가 낮음
+   * 인간 텍스트는 예상치 못한 단어 선택으로 perplexity가 높음
+   * 
+   * 로컬 근사 방식: 
+   * - 단어 빈도 기반 surprisal 계산
+   * - 희귀 단어, 비일상적 조합이 많을수록 높은 점수
    */
+  calculatePerplexity(text) {
+    const words = this.tokenize(text);
+    if (words.length < 20)
+      return 50;
+    const wordFreq = /* @__PURE__ */ new Map();
+    words.forEach((w) => wordFreq.set(w, (wordFreq.get(w) || 0) + 1));
+    let totalSurprisal = 0;
+    const vocab = wordFreq.size;
+    for (let i = 1; i < words.length; i++) {
+      const word = words[i];
+      const freq = wordFreq.get(word) || 1;
+      const prob = freq / words.length;
+      const surprisal = -Math.log2(prob + 1e-3);
+      totalSurprisal += surprisal;
+    }
+    const avgSurprisal = totalSurprisal / (words.length - 1);
+    const bigramUniqueness = this.calculateBigramUniqueness(words);
+    const rareWordRatio = this.calculateRareWordRatio(words, wordFreq);
+    const rawPerplexity = avgSurprisal * (1 + bigramUniqueness * 0.3 + rareWordRatio * 0.2);
+    const normalized = Math.min(100, Math.max(0, (rawPerplexity - 3) * 15));
+    return Math.round(normalized);
+  }
+  calculateBigramUniqueness(words) {
+    if (words.length < 2)
+      return 0;
+    const bigrams = [];
+    for (let i = 0; i < words.length - 1; i++) {
+      bigrams.push(`${words[i]} ${words[i + 1]}`);
+    }
+    const unique = new Set(bigrams).size;
+    return unique / bigrams.length;
+  }
+  calculateRareWordRatio(words, freqMap) {
+    const rareWords = words.filter((w) => (freqMap.get(w) || 0) === 1);
+    return rareWords.length / words.length;
+  }
+  /**
+   * Burstiness (폭발성) 계산 - AI 탐지 핵심 지표
+   * 
+   * AI 텍스트: 문장 길이가 균일함 → 낮은 burstiness
+   * 인간 텍스트: 문장 길이가 들쭉날쭉 → 높은 burstiness
+   * 
+   * 계산: 문장 길이의 변동계수(CV) + 연속 문장 간 길이 차이
+   */
+  calculateBurstiness(text) {
+    const sentences = this.splitSentences(text);
+    if (sentences.length < 4)
+      return 50;
+    const lengths = sentences.map((s) => this.tokenize(s).length);
+    const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+    const variance = lengths.reduce((sum, len) => sum + Math.pow(len - mean, 2), 0) / lengths.length;
+    const stdDev = Math.sqrt(variance);
+    const cv = mean > 0 ? stdDev / mean : 0;
+    let consecutiveDiff = 0;
+    for (let i = 1; i < lengths.length; i++) {
+      consecutiveDiff += Math.abs(lengths[i] - lengths[i - 1]);
+    }
+    const avgConsecutiveDiff = consecutiveDiff / (lengths.length - 1);
+    const shortSentenceRatio = lengths.filter((l) => l <= 8).length / lengths.length;
+    const longSentenceRatio = lengths.filter((l) => l >= 20).length / lengths.length;
+    const extremeRatio = shortSentenceRatio + longSentenceRatio;
+    const rawBurstiness = cv * 40 + avgConsecutiveDiff * 2 + extremeRatio * 30;
+    return Math.round(Math.min(100, Math.max(0, rawBurstiness)));
+  }
   calculateHumanScore(metrics) {
     const weights = {
-      vocabularyDiversity: 0.15,
-      sentenceVariance: 0.2,
-      aiPatternPenalty: 0.25,
-      // 패턴당 감점
-      personalExpression: 0.25,
-      repetition: 0.15
+      vocabularyDiversity: 0.1,
+      sentenceVariance: 0.1,
+      aiPatternPenalty: 0.15,
+      personalExpression: 0.15,
+      repetition: 0.1,
+      perplexity: 0.2,
+      burstiness: 0.2
     };
     let score = 50;
     score += (metrics.vocabularyDiversity - 50) * weights.vocabularyDiversity;
@@ -331,11 +403,10 @@ var LocalAnalyzer = class {
     score -= metrics.aiPatternCount * 5 * weights.aiPatternPenalty;
     score += (metrics.personalExpressionScore - 50) * weights.personalExpression;
     score -= metrics.repetitionRate * weights.repetition;
+    score += (metrics.perplexity - 40) * weights.perplexity;
+    score += (metrics.burstiness - 40) * weights.burstiness;
     return Math.max(0, Math.min(100, Math.round(score)));
   }
-  /**
-   * 로컬 기반 개선 제안 생성
-   */
   generateLocalSuggestions(text, metrics) {
     const suggestions = [];
     if (metrics.personalExpressionScore < 50) {
@@ -392,9 +463,6 @@ var LocalAnalyzer = class {
       return text.toLowerCase().split(/[\s,.!?;:]+/).filter((w) => w.length > 2);
     }
   }
-  /**
-   * 빈 결과 생성
-   */
   createEmptyResult(message) {
     return {
       humanScore: 0,
@@ -403,7 +471,9 @@ var LocalAnalyzer = class {
         sentenceVariance: 0,
         aiPatternCount: 0,
         personalExpressionScore: 0,
-        repetitionRate: 0
+        repetitionRate: 0,
+        perplexity: 0,
+        burstiness: 0
       },
       issues: [],
       suggestions: [{
@@ -445,13 +515,39 @@ var AIProvider = class {
     return this.parseResponse(response, text);
   }
   async humanize(text) {
-    const prompt = `\uB2E4\uC74C \uD14D\uC2A4\uD2B8\uB97C AI\uAC00 \uC791\uC131\uD55C \uB290\uB08C\uC774 \uB4E4\uC9C0 \uC54A\uB3C4\uB85D \uC790\uC5F0\uC2A4\uB7FD\uAC8C \uB2E4\uC2DC \uC791\uC131\uD574\uC8FC\uC138\uC694.
-\uAC1C\uC778\uC801 \uACBD\uD5D8, \uAC10\uC815 \uD45C\uD604\uC744 \uCD94\uAC00\uD558\uACE0 \uBB38\uC7A5 \uAE38\uC774\uC5D0 \uBCC0\uD654\uB97C \uC8FC\uC138\uC694.
+    const prompt = `\uB2F9\uC2E0\uC740 AI \uD0D0\uC9C0 \uC6B0\uD68C \uC804\uBB38\uAC00\uC785\uB2C8\uB2E4. CopyKiller, GPT\uD0AC\uB7EC \uAC19\uC740 AI \uD0D0\uC9C0\uAE30\uB97C \uD1B5\uACFC\uD558\uB3C4\uB85D \uD14D\uC2A4\uD2B8\uB97C \uC218\uC815\uD558\uC138\uC694.
 
-\uC6D0\uBCF8:
+## \uC6D0\uBCF8 \uD14D\uC2A4\uD2B8
 ${text}
 
-\uC218\uC815\uB41C \uD14D\uC2A4\uD2B8\uB9CC \uCD9C\uB825\uD558\uC138\uC694.`;
+## \uD544\uC218 \uC801\uC6A9 \uADDC\uCE59
+
+### 1. \uBB38\uC7A5 \uAE38\uC774 \uB2E4\uC591\uD654 (Burstiness \uB192\uC774\uAE30)
+- \uC9E7\uC740 \uBB38\uC7A5(5\uB2E8\uC5B4 \uC774\uD558) 30% \uC774\uC0C1 \uD3EC\uD568
+- \uAE34 \uBB38\uC7A5\uACFC \uC9E7\uC740 \uBB38\uC7A5\uC744 \uBD88\uADDC\uCE59\uD558\uAC8C \uC11E\uAE30
+- \uC608: "\uADF8\uB7AC\uB2E4." "\uC815\uB9D0 \uB180\uB77C\uC6E0\uB2E4." \uAC19\uC740 \uCD08\uB2E8\uBB38 \uC0AC\uC6A9
+
+### 2. \uC608\uCE21 \uBD88\uAC00\uB2A5\uD55C \uD45C\uD604 (Perplexity \uB192\uC774\uAE30)
+- \uC0C1\uD22C\uC801 \uD45C\uD604 \uC644\uC804 \uC81C\uAC70: "\uACB0\uB860\uC801\uC73C\uB85C", "\uB530\uB77C\uC11C", "\uB9E4\uC6B0 \uC911\uC694\uD55C"
+- \uAD00\uC6A9\uAD6C \uB300\uC2E0 \uAD6C\uCCB4\uC801 \uBB18\uC0AC \uC0AC\uC6A9
+- \uC608\uC0C1\uCE58 \uBABB\uD55C \uBE44\uC720\uB098 \uD45C\uD604 \uCD94\uAC00
+
+### 3. \uAC1C\uC778\uD654 \uC694\uC18C \uCD94\uAC00
+- 1\uC778\uCE6D \uACBD\uD5D8 1~2\uAC1C \uC790\uC5F0\uC2A4\uB7FD\uAC8C \uC0BD\uC785
+- \uAD6C\uCCB4\uC801 \uAC10\uC815/\uB290\uB08C \uD45C\uD604
+- "\uB0B4 \uACBD\uD5D8\uC0C1", "\uC194\uC9C1\uD788 \uB9D0\uD558\uBA74" \uB4F1 \uAD6C\uC5B4\uCCB4
+
+### 4. \uAD6C\uC870 \uD328\uD134 \uC81C\uAC70
+- "\uCCAB\uC9F8, \uB458\uC9F8, \uC14B\uC9F8" \uB098\uC5F4 \uAE08\uC9C0
+- \uAC01 \uBB38\uB2E8 \uC2DC\uC791\uC744 \uB2E4\uB974\uAC8C
+- \uB17C\uB9AC\uC801\uC774\uB418 \uAE30\uACC4\uC801\uC774\uC9C0 \uC54A\uAC8C
+
+### 5. \uC6D0\uBB38 \uC758\uBBF8 100% \uC720\uC9C0
+- \uD575\uC2EC \uC815\uBCF4 \uB204\uB77D \uAE08\uC9C0
+- \uD1A4\uB9CC \uBC14\uAFB8\uACE0 \uB0B4\uC6A9\uC740 \uBCF4\uC874
+
+## \uCD9C\uB825
+\uC218\uC815\uB41C \uD14D\uC2A4\uD2B8\uB9CC \uCD9C\uB825\uD558\uC138\uC694. \uC124\uBA85\uC774\uB098 \uC8FC\uC11D \uC5C6\uC774 \uD14D\uC2A4\uD2B8\uB9CC.`;
     const response = await this.callAPI(prompt);
     return this.extractText(response);
   }
@@ -593,7 +689,9 @@ JSON \uD615\uC2DD\uC73C\uB85C \uC751\uB2F5:
         sentenceVariance: 0,
         aiPatternCount: issues.length,
         personalExpressionScore: 0,
-        repetitionRate: 0
+        repetitionRate: 0,
+        perplexity: 0,
+        burstiness: 0
       },
       issues,
       suggestions,
@@ -631,22 +729,41 @@ ${text}
 ...`;
   }
   generateHumanizePrompt(text) {
-    return `# Humanize \uC694\uCCAD
+    return `# AI \uD0D0\uC9C0 \uC6B0\uD68C Humanize \uC694\uCCAD
 
-\uB2E4\uC74C \uD14D\uC2A4\uD2B8\uB97C AI\uAC00 \uC791\uC131\uD55C \uB290\uB08C\uC774 \uB4E4\uC9C0 \uC54A\uAC8C \uC218\uC815\uD574\uC8FC\uC138\uC694.
+CopyKiller, GPT\uD0AC\uB7EC \uAC19\uC740 AI \uD0D0\uC9C0\uAE30\uB97C \uD1B5\uACFC\uD558\uB3C4\uB85D \uD14D\uC2A4\uD2B8\uB97C \uC218\uC815\uD574\uC8FC\uC138\uC694.
 
 ## \uC6D0\uBCF8
 \`\`\`
 ${text}
 \`\`\`
 
-## \uC694\uAD6C\uC0AC\uD56D
-- \uC0C1\uD22C\uC801 \uD45C\uD604 \uC81C\uAC70
-- \uAC1C\uC778\uC801 \uACBD\uD5D8/\uAC10\uC815 \uCD94\uAC00
-- \uBB38\uC7A5 \uAE38\uC774 \uB2E4\uC591\uD654
-- \uC6D0\uBB38 \uC758\uBBF8 \uC720\uC9C0
+## \uD544\uC218 \uADDC\uCE59
 
-\uC218\uC815\uB41C \uD14D\uC2A4\uD2B8\uB9CC \uCD9C\uB825\uD558\uC138\uC694.`;
+### 1. Burstiness \uB192\uC774\uAE30 (\uBB38\uC7A5 \uAE38\uC774 \uB2E4\uC591\uD654)
+- \uC9E7\uC740 \uBB38\uC7A5(5\uB2E8\uC5B4 \uC774\uD558) **30% \uC774\uC0C1** \uD3EC\uD568
+- "\uADF8\uB7AC\uB2E4." "\uC815\uB9D0\uC774\uB2E4." \uAC19\uC740 \uCD08\uB2E8\uBB38 \uC0AC\uC6A9
+- \uAE34 \uBB38\uC7A5\uACFC \uBD88\uADDC\uCE59\uD558\uAC8C \uC11E\uAE30
+
+### 2. Perplexity \uB192\uC774\uAE30 (\uC608\uCE21 \uBD88\uAC00\uB2A5\uC131)
+- \uC0C1\uD22C\uC5B4 \uC81C\uAC70: "\uACB0\uB860\uC801\uC73C\uB85C", "\uB530\uB77C\uC11C", "\uB9E4\uC6B0 \uC911\uC694\uD55C"
+- \uAD00\uC6A9\uAD6C \u2192 \uAD6C\uCCB4\uC801 \uBB18\uC0AC\uB85C \uAD50\uCCB4
+- \uC608\uC0C1 \uBABB\uD55C \uBE44\uC720/\uD45C\uD604 \uCD94\uAC00
+
+### 3. \uAC1C\uC778\uD654
+- 1\uC778\uCE6D \uACBD\uD5D8 1~2\uAC1C \uC0BD\uC785
+- \uAD6C\uCCB4\uC801 \uAC10\uC815 \uD45C\uD604
+- \uAD6C\uC5B4\uCCB4 \uC0AC\uC6A9: "\uC194\uC9C1\uD788", "\uB0B4 \uC0DD\uAC01\uC5D4"
+
+### 4. \uAD6C\uC870 \uD328\uD134 \uC81C\uAC70
+- "\uCCAB\uC9F8, \uB458\uC9F8, \uC14B\uC9F8" \uAE08\uC9C0
+- \uBB38\uB2E8 \uC2DC\uC791\uC744 \uB2E4\uC591\uD558\uAC8C
+
+### 5. \uC758\uBBF8 \uBCF4\uC874
+- \uC6D0\uBB38 \uD575\uC2EC \uC815\uBCF4 100% \uC720\uC9C0
+
+## \uCD9C\uB825
+\uC218\uC815\uB41C \uD14D\uC2A4\uD2B8\uB9CC \uCD9C\uB825 (\uC124\uBA85 \uC5C6\uC774)`;
   }
 };
 
@@ -885,14 +1002,18 @@ var AnalysisView = class extends import_obsidian3.ItemView {
     const section = container.createDiv("writeguard-section metrics-section");
     section.createEl("h3", { text: "\u{1F4CA} \uC138\uBD80 \uC9C0\uD45C" });
     const grid = section.createDiv("metrics-grid");
+    this.renderMetric(grid, "Perplexity", metrics.perplexity, "%", false, "\uD63C\uB780\uB3C4 - \uB192\uC744\uC218\uB85D \uC778\uAC04\uC801");
+    this.renderMetric(grid, "Burstiness", metrics.burstiness, "%", false, "\uD3ED\uBC1C\uC131 - \uB192\uC744\uC218\uB85D \uC790\uC5F0\uC2A4\uB7EC\uC6C0");
     this.renderMetric(grid, "\uC5B4\uD718 \uB2E4\uC591\uC131", metrics.vocabularyDiversity, "%");
     this.renderMetric(grid, "\uBB38\uC7A5 \uBCC0\uD654\uB3C4", metrics.sentenceVariance, "");
     this.renderMetric(grid, "AI \uD328\uD134", metrics.aiPatternCount, "\uAC1C", true);
     this.renderMetric(grid, "\uAC1C\uC778\uD654 \uC218\uC900", metrics.personalExpressionScore, "%");
     this.renderMetric(grid, "\uBC18\uBCF5\uB960", metrics.repetitionRate, "%", true);
   }
-  renderMetric(container, label, value, unit, inverse = false) {
+  renderMetric(container, label, value, unit, inverse = false, tooltip) {
     const item = container.createDiv("metric-item");
+    if (tooltip)
+      item.setAttribute("title", tooltip);
     const status = inverse ? value <= 20 ? "good" : value <= 50 ? "warning" : "danger" : value >= 60 ? "good" : value >= 40 ? "warning" : "danger";
     item.createEl("span", { text: label, cls: "metric-label" });
     item.createEl("span", {
@@ -994,8 +1115,243 @@ function createHighlighterExtension(highlighter) {
   );
 }
 
+// src/ui/AnalysisModal.ts
+var import_obsidian4 = require("obsidian");
+var AnalysisModal = class extends import_obsidian4.Modal {
+  constructor(app, plugin) {
+    super(app);
+    this.beforeResult = null;
+    this.afterResult = null;
+    this.originalText = "";
+    this.humanizedText = "";
+    this.currentView = "analysis";
+    this.plugin = plugin;
+  }
+  async onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("writeguard-modal");
+    const mdView = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    if (!mdView) {
+      this.renderError("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+    this.originalText = mdView.editor.getValue();
+    if (this.originalText.length < 50) {
+      this.renderError("\uD14D\uC2A4\uD2B8\uAC00 \uB108\uBB34 \uC9E7\uC2B5\uB2C8\uB2E4. (\uCD5C\uC18C 50\uC790)");
+      return;
+    }
+    this.beforeResult = this.plugin.localAnalyzer.analyze(this.originalText);
+    this.renderAnalysisView();
+  }
+  renderError(message) {
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: "\u26A0\uFE0F \uC624\uB958" });
+    contentEl.createEl("p", { text: message });
+  }
+  renderAnalysisView() {
+    const { contentEl } = this;
+    contentEl.empty();
+    this.currentView = "analysis";
+    contentEl.createEl("h2", { text: "\u{1F4CA} WriteGuard \uBD84\uC11D" });
+    const scoreContainer = contentEl.createDiv("wg-score-container");
+    this.renderScoreCard(scoreContainer, "\uD604\uC7AC \uC810\uC218", this.beforeResult);
+    const metricsContainer = contentEl.createDiv("wg-metrics-container");
+    this.renderMetrics(metricsContainer, this.beforeResult);
+    const issuesContainer = contentEl.createDiv("wg-issues-container");
+    this.renderIssues(issuesContainer, this.beforeResult);
+    const actionsContainer = contentEl.createDiv("wg-actions-container");
+    this.renderActions(actionsContainer);
+  }
+  renderScoreCard(container, title, result) {
+    const card = container.createDiv("wg-score-card");
+    card.createEl("h3", { text: title });
+    const score = result.humanScore;
+    const status = score >= 85 ? "excellent" : score >= 70 ? "good" : score >= 50 ? "warning" : "danger";
+    const scoreEl = card.createDiv("wg-score");
+    scoreEl.addClass(status);
+    scoreEl.createEl("span", { text: `${score}`, cls: "wg-score-value" });
+    scoreEl.createEl("span", { text: "/100", cls: "wg-score-max" });
+    const statusText = {
+      excellent: "\u2705 \uB9E4\uC6B0 \uC790\uC5F0\uC2A4\uB7EC\uC6C0",
+      good: "\u{1F44D} \uC591\uD638",
+      warning: "\u26A0\uFE0F \uC218\uC815 \uD544\uC694",
+      danger: "\u{1F534} AI \uAC10\uC9C0 \uC704\uD5D8"
+    };
+    card.createEl("p", { text: statusText[status], cls: `wg-status ${status}` });
+  }
+  renderMetrics(container, result) {
+    container.createEl("h3", { text: "\u{1F4C8} \uC138\uBD80 \uC9C0\uD45C" });
+    const grid = container.createDiv("wg-metrics-grid");
+    const m = result.metrics;
+    const metrics = [
+      { label: "Perplexity (\uD63C\uB780\uB3C4)", value: m.perplexity, good: true, desc: "\uB192\uC744\uC218\uB85D \uC778\uAC04\uC801" },
+      { label: "Burstiness (\uD3ED\uBC1C\uC131)", value: m.burstiness, good: true, desc: "\uB192\uC744\uC218\uB85D \uC790\uC5F0\uC2A4\uB7EC\uC6C0" },
+      { label: "\uC5B4\uD718 \uB2E4\uC591\uC131", value: m.vocabularyDiversity, good: true, desc: "\uB2E4\uC591\uD55C \uB2E8\uC5B4 \uC0AC\uC6A9" },
+      { label: "\uBB38\uC7A5 \uBCC0\uD654\uB3C4", value: m.sentenceVariance, good: true, desc: "\uBB38\uC7A5 \uAE38\uC774 \uB2E4\uC591\uC131" },
+      { label: "\uAC1C\uC778\uD654 \uC218\uC900", value: m.personalExpressionScore, good: true, desc: "\uAC1C\uC778 \uACBD\uD5D8/\uAC10\uC815" },
+      { label: "AI \uD328\uD134", value: m.aiPatternCount, good: false, desc: "\uC801\uC744\uC218\uB85D \uC88B\uC74C" },
+      { label: "\uBC18\uBCF5\uB960", value: m.repetitionRate, good: false, desc: "\uB0AE\uC744\uC218\uB85D \uC88B\uC74C" }
+    ];
+    metrics.forEach(({ label, value, good, desc }) => {
+      const item = grid.createDiv("wg-metric-item");
+      item.createEl("span", { text: label, cls: "wg-metric-label" });
+      const valueStatus = good ? value >= 60 ? "good" : value >= 40 ? "warning" : "danger" : value <= 20 ? "good" : value <= 50 ? "warning" : "danger";
+      item.createEl("span", {
+        text: `${Math.round(value)}${good ? "%" : label === "AI \uD328\uD134" ? "\uAC1C" : "%"}`,
+        cls: `wg-metric-value ${valueStatus}`
+      });
+      item.createEl("span", { text: desc, cls: "wg-metric-desc" });
+    });
+  }
+  renderIssues(container, result) {
+    if (result.issues.length === 0)
+      return;
+    container.createEl("h3", { text: `\u{1F50D} \uBC1C\uACAC\uB41C \uBB38\uC81C (${result.issues.length}\uAC1C)` });
+    const list = container.createDiv("wg-issues-list");
+    result.issues.slice(0, 5).forEach((issue) => {
+      const item = list.createDiv("wg-issue-item");
+      item.addClass(issue.severity);
+      const badge = item.createEl("span", {
+        text: issue.severity === "high" ? "\uB192\uC74C" : issue.severity === "medium" ? "\uC911\uAC04" : "\uB0AE\uC74C",
+        cls: `wg-severity-badge ${issue.severity}`
+      });
+      item.createEl("span", { text: `"${issue.text.substring(0, 40)}..."`, cls: "wg-issue-text" });
+      item.createEl("p", { text: issue.description, cls: "wg-issue-desc" });
+    });
+  }
+  renderActions(container) {
+    container.createEl("h3", { text: "\u{1F680} \uC791\uC5C5" });
+    const btnRow = container.createDiv("wg-btn-row");
+    new import_obsidian4.ButtonComponent(btnRow).setButtonText("\u2728 \uC6D0\uD074\uB9AD Humanize").setCta().onClick(() => this.runHumanize());
+    new import_obsidian4.ButtonComponent(btnRow).setButtonText("\u{1F4CB} Claude Code \uD504\uB86C\uD504\uD2B8").onClick(() => this.copyPrompt());
+    if (this.plugin.aiProvider) {
+      new import_obsidian4.ButtonComponent(btnRow).setButtonText("\u{1F916} AI \uC815\uBC00 \uBD84\uC11D").onClick(() => this.runAIAnalysis());
+    }
+  }
+  async runHumanize() {
+    if (!this.plugin.aiProvider) {
+      new import_obsidian4.Notice("API \uD0A4\uAC00 \uC124\uC815\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.");
+      const prompt = this.plugin.claudeCode.generateHumanizePrompt(this.originalText);
+      await navigator.clipboard.writeText(prompt);
+      new import_obsidian4.Notice("\u{1F4CB} Humanize \uD504\uB86C\uD504\uD2B8\uAC00 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. Claude Code\uC5D0 \uBD99\uC5EC\uB123\uAE30\uD558\uC138\uC694.");
+      return;
+    }
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "\u2728 Humanize \uC9C4\uD589 \uC911..." });
+    const progress = contentEl.createDiv("wg-progress");
+    const steps = ["\uBD84\uC11D \uC911", "AI \uCC98\uB9AC \uC911", "\uAC80\uC99D \uC911", "\uC644\uB8CC"];
+    const progressBar = progress.createDiv("wg-progress-bar");
+    const statusEl = progress.createEl("p", { cls: "wg-progress-status" });
+    try {
+      statusEl.setText("\u{1F50D} \uC6D0\uBCF8 \uBD84\uC11D \uC644\uB8CC");
+      progressBar.style.width = "25%";
+      await this.delay(500);
+      statusEl.setText("\u{1F916} AI Humanize \uCC98\uB9AC \uC911...");
+      progressBar.style.width = "50%";
+      this.humanizedText = await this.plugin.aiProvider.humanize(this.originalText);
+      statusEl.setText("\u{1F4CA} \uACB0\uACFC \uAC80\uC99D \uC911...");
+      progressBar.style.width = "75%";
+      this.afterResult = this.plugin.localAnalyzer.analyze(this.humanizedText);
+      progressBar.style.width = "100%";
+      statusEl.setText("\u2705 \uC644\uB8CC!");
+      await this.delay(500);
+      this.renderComparisonView();
+    } catch (error) {
+      contentEl.empty();
+      contentEl.createEl("h2", { text: "\u274C \uC624\uB958 \uBC1C\uC0DD" });
+      contentEl.createEl("p", { text: error.message });
+      new import_obsidian4.ButtonComponent(contentEl).setButtonText("\u2190 \uB3CC\uC544\uAC00\uAE30").onClick(() => this.renderAnalysisView());
+    }
+  }
+  renderComparisonView() {
+    const { contentEl } = this;
+    contentEl.empty();
+    this.currentView = "comparison";
+    contentEl.createEl("h2", { text: "\u{1F4CA} Before / After \uBE44\uAD50" });
+    const comparison = contentEl.createDiv("wg-comparison");
+    const beforeCol = comparison.createDiv("wg-compare-col");
+    beforeCol.createEl("h3", { text: "\u{1F534} Before" });
+    this.renderCompareScore(beforeCol, this.beforeResult);
+    const arrow = comparison.createDiv("wg-compare-arrow");
+    const diff = this.afterResult.humanScore - this.beforeResult.humanScore;
+    arrow.createEl("span", { text: `+${diff}\uC810`, cls: diff > 0 ? "positive" : "neutral" });
+    arrow.createEl("span", { text: "\u2192", cls: "arrow-icon" });
+    const afterCol = comparison.createDiv("wg-compare-col");
+    afterCol.createEl("h3", { text: "\u{1F7E2} After" });
+    this.renderCompareScore(afterCol, this.afterResult);
+    const textComparison = contentEl.createDiv("wg-text-comparison");
+    const beforeText = textComparison.createDiv("wg-text-col");
+    beforeText.createEl("h4", { text: "\uC6D0\uBCF8" });
+    beforeText.createEl("pre", { text: this.truncate(this.originalText, 500) });
+    const afterText = textComparison.createDiv("wg-text-col");
+    afterText.createEl("h4", { text: "Humanized" });
+    afterText.createEl("pre", { text: this.truncate(this.humanizedText, 500) });
+    const actionsRow = contentEl.createDiv("wg-actions-final");
+    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u2705 \uC801\uC6A9\uD558\uAE30").setCta().onClick(() => this.applyHumanized());
+    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u{1F4CB} \uBCF5\uC0AC\uD558\uAE30").onClick(async () => {
+      await navigator.clipboard.writeText(this.humanizedText);
+      new import_obsidian4.Notice("\u{1F4CB} Humanized \uD14D\uC2A4\uD2B8\uAC00 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!");
+    });
+    new import_obsidian4.ButtonComponent(actionsRow).setButtonText("\u2190 \uB2E4\uC2DC \uBD84\uC11D").onClick(() => this.renderAnalysisView());
+  }
+  renderCompareScore(container, result) {
+    const score = result.humanScore;
+    const status = score >= 85 ? "excellent" : score >= 70 ? "good" : score >= 50 ? "warning" : "danger";
+    const scoreEl = container.createDiv("wg-compare-score");
+    scoreEl.addClass(status);
+    scoreEl.createEl("span", { text: `${score}`, cls: "score-num" });
+    scoreEl.createEl("span", { text: "/100" });
+    const metrics = container.createDiv("wg-compare-metrics");
+    metrics.createEl("div", { text: `Perplexity: ${result.metrics.perplexity}%` });
+    metrics.createEl("div", { text: `Burstiness: ${result.metrics.burstiness}%` });
+    metrics.createEl("div", { text: `AI\uD328\uD134: ${result.metrics.aiPatternCount}\uAC1C` });
+  }
+  applyHumanized() {
+    const mdView = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    if (mdView) {
+      mdView.editor.setValue(this.humanizedText);
+      new import_obsidian4.Notice("\u2705 Humanized \uD14D\uC2A4\uD2B8\uAC00 \uC801\uC6A9\uB418\uC5C8\uC2B5\uB2C8\uB2E4!");
+      this.close();
+    }
+  }
+  async copyPrompt() {
+    const prompt = this.plugin.claudeCode.generateAnalysisPrompt(this.originalText);
+    await navigator.clipboard.writeText(prompt);
+    new import_obsidian4.Notice("\u{1F4CB} \uD504\uB86C\uD504\uD2B8\uAC00 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!");
+  }
+  async runAIAnalysis() {
+    if (!this.plugin.aiProvider)
+      return;
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "\u{1F916} AI \uC815\uBC00 \uBD84\uC11D \uC911..." });
+    try {
+      this.beforeResult = await this.plugin.aiProvider.analyze(this.originalText);
+      this.renderAnalysisView();
+      new import_obsidian4.Notice("\u2705 AI \uBD84\uC11D \uC644\uB8CC!");
+    } catch (error) {
+      contentEl.empty();
+      this.renderError(error.message);
+    }
+  }
+  truncate(text, maxLength) {
+    if (text.length <= maxLength)
+      return text;
+    return text.substring(0, maxLength) + "...";
+  }
+  delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+
 // src/main.ts
-var WriteGuardPlugin = class extends import_obsidian4.Plugin {
+var WriteGuardPlugin = class extends import_obsidian5.Plugin {
   constructor() {
     super(...arguments);
     this.aiProvider = null;
@@ -1044,6 +1400,11 @@ var WriteGuardPlugin = class extends import_obsidian4.Plugin {
       name: "\uC778\uB77C\uC778 \uD558\uC774\uB77C\uC774\uD2B8 \uD1A0\uAE00",
       callback: () => this.toggleHighlights()
     });
+    this.addCommand({
+      id: "open-analysis-modal",
+      name: "\uBD84\uC11D \uBAA8\uB2EC \uC5F4\uAE30 (Before/After)",
+      callback: () => this.openAnalysisModal()
+    });
     this.addSettingTab(new WriteGuardSettingTab(this.app, this));
     if (this.settings.autoAnalyze) {
       this.registerEvent(
@@ -1069,16 +1430,16 @@ var WriteGuardPlugin = class extends import_obsidian4.Plugin {
     }, this.settings.autoAnalyzeDelay);
   }
   async analyzeCurrentNote(silent = false) {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
     if (!view) {
       if (!silent)
-        new import_obsidian4.Notice("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+        new import_obsidian5.Notice("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
       return;
     }
     const content = view.editor.getValue();
     if (content.length < 50) {
       if (!silent)
-        new import_obsidian4.Notice("\uD14D\uC2A4\uD2B8\uAC00 \uB108\uBB34 \uC9E7\uC2B5\uB2C8\uB2E4.");
+        new import_obsidian5.Notice("\uD14D\uC2A4\uD2B8\uAC00 \uB108\uBB34 \uC9E7\uC2B5\uB2C8\uB2E4.");
       return;
     }
     this.lastResult = this.localAnalyzer.analyze(content);
@@ -1087,63 +1448,63 @@ var WriteGuardPlugin = class extends import_obsidian4.Plugin {
     if (!silent) {
       const score = this.lastResult.humanScore;
       const emoji = score >= 85 ? "\u{1F7E2}" : score >= 60 ? "\u{1F7E1}" : "\u{1F534}";
-      new import_obsidian4.Notice(`${emoji} Human Score: ${score}/100`);
+      new import_obsidian5.Notice(`${emoji} Human Score: ${score}/100`);
     }
   }
   async analyzeWithAI() {
     if (!this.aiProvider) {
-      new import_obsidian4.Notice("API \uD0A4\uB97C \uC124\uC815\uD574\uC8FC\uC138\uC694. (\uC124\uC815 > WriteGuard)");
+      new import_obsidian5.Notice("API \uD0A4\uB97C \uC124\uC815\uD574\uC8FC\uC138\uC694. (\uC124\uC815 > WriteGuard)");
       return;
     }
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
     if (!view) {
-      new import_obsidian4.Notice("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      new import_obsidian5.Notice("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
       return;
     }
     const content = view.editor.getValue();
-    new import_obsidian4.Notice("AI \uBD84\uC11D \uC911...");
+    new import_obsidian5.Notice("AI \uBD84\uC11D \uC911...");
     try {
       this.lastResult = await this.aiProvider.analyze(content);
       this.updateHighlights();
       this.updateAnalysisView();
       const score = this.lastResult.humanScore;
       const emoji = score >= 85 ? "\u{1F7E2}" : score >= 60 ? "\u{1F7E1}" : "\u{1F534}";
-      new import_obsidian4.Notice(`${emoji} AI \uBD84\uC11D \uC644\uB8CC: ${score}/100`);
+      new import_obsidian5.Notice(`${emoji} AI \uBD84\uC11D \uC644\uB8CC: ${score}/100`);
     } catch (error) {
-      new import_obsidian4.Notice(`\uBD84\uC11D \uC2E4\uD328: ${error.message}`);
+      new import_obsidian5.Notice(`\uBD84\uC11D \uC2E4\uD328: ${error.message}`);
     }
   }
   async humanizeSelection(editor) {
     const selection = editor.getSelection();
     if (!selection) {
-      new import_obsidian4.Notice("\uD14D\uC2A4\uD2B8\uB97C \uC120\uD0DD\uD574\uC8FC\uC138\uC694.");
+      new import_obsidian5.Notice("\uD14D\uC2A4\uD2B8\uB97C \uC120\uD0DD\uD574\uC8FC\uC138\uC694.");
       return;
     }
     if (!this.aiProvider) {
       const prompt = this.claudeCode.generateHumanizePrompt(selection);
       await navigator.clipboard.writeText(prompt);
-      new import_obsidian4.Notice("Humanize \uD504\uB86C\uD504\uD2B8\uAC00 \uD074\uB9BD\uBCF4\uB4DC\uC5D0 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. Claude Code\uC5D0 \uBD99\uC5EC\uB123\uAE30\uD558\uC138\uC694.");
+      new import_obsidian5.Notice("Humanize \uD504\uB86C\uD504\uD2B8\uAC00 \uD074\uB9BD\uBCF4\uB4DC\uC5D0 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. Claude Code\uC5D0 \uBD99\uC5EC\uB123\uAE30\uD558\uC138\uC694.");
       return;
     }
-    new import_obsidian4.Notice("Humanize \uC911...");
+    new import_obsidian5.Notice("Humanize \uC911...");
     try {
       const humanized = await this.aiProvider.humanize(selection);
       editor.replaceSelection(humanized);
-      new import_obsidian4.Notice("\u2705 Humanize \uC644\uB8CC!");
+      new import_obsidian5.Notice("\u2705 Humanize \uC644\uB8CC!");
     } catch (error) {
-      new import_obsidian4.Notice(`\uC2E4\uD328: ${error.message}`);
+      new import_obsidian5.Notice(`\uC2E4\uD328: ${error.message}`);
     }
   }
   async copyClaudeCodePrompt() {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
     if (!view) {
-      new import_obsidian4.Notice("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      new import_obsidian5.Notice("\uC5F4\uB9B0 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
       return;
     }
     const content = view.editor.getValue();
     const prompt = this.claudeCode.generateAnalysisPrompt(content);
     await navigator.clipboard.writeText(prompt);
-    new import_obsidian4.Notice("\u{1F4CB} \uD504\uB86C\uD504\uD2B8\uAC00 \uD074\uB9BD\uBCF4\uB4DC\uC5D0 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!\nClaude Code\uC5D0 \uBD99\uC5EC\uB123\uAE30\uD558\uC138\uC694.");
+    new import_obsidian5.Notice("\u{1F4CB} \uD504\uB86C\uD504\uD2B8\uAC00 \uD074\uB9BD\uBCF4\uB4DC\uC5D0 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!\nClaude Code\uC5D0 \uBD99\uC5EC\uB123\uAE30\uD558\uC138\uC694.");
   }
   async toggleAnalysisPanel() {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_ANALYSIS);
@@ -1157,12 +1518,15 @@ var WriteGuardPlugin = class extends import_obsidian4.Plugin {
       }
     }
   }
+  openAnalysisModal() {
+    new AnalysisModal(this.app, this).open();
+  }
   toggleHighlights() {
     this.settings.showInlineHighlights = !this.settings.showInlineHighlights;
     this.highlighter.setEnabled(this.settings.showInlineHighlights);
     this.saveSettings();
     this.refreshEditors();
-    new import_obsidian4.Notice(this.settings.showInlineHighlights ? "\u{1F534} \uD558\uC774\uB77C\uC774\uD2B8 \uD65C\uC131\uD654" : "\u26AA \uD558\uC774\uB77C\uC774\uD2B8 \uBE44\uD65C\uC131\uD654");
+    new import_obsidian5.Notice(this.settings.showInlineHighlights ? "\u{1F534} \uD558\uC774\uB77C\uC774\uD2B8 \uD65C\uC131\uD654" : "\u26AA \uD558\uC774\uB77C\uC774\uD2B8 \uBE44\uD65C\uC131\uD654");
   }
   updateHighlights() {
     if (this.lastResult) {
@@ -1173,7 +1537,7 @@ var WriteGuardPlugin = class extends import_obsidian4.Plugin {
   refreshEditors() {
     this.app.workspace.iterateAllLeaves((leaf) => {
       var _a;
-      if (leaf.view instanceof import_obsidian4.MarkdownView) {
+      if (leaf.view instanceof import_obsidian5.MarkdownView) {
         const cmEditor = (_a = leaf.view.editor) == null ? void 0 : _a.cm;
         if (cmEditor) {
           cmEditor.dispatch({ effects: [] });
