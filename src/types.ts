@@ -58,8 +58,8 @@ export const DEFAULT_SETTINGS: WriteGuardSettings = {
   selectedModel: {
     anthropic: 'claude-sonnet-4-6',
     openai: 'gpt-5.4',
-    gemini: 'gemini-3.1-pro-preview',
-    cerebras: 'llama3.1-8b'
+    gemini: 'gemini-2.5-flash',
+    cerebras: 'gpt-oss-120b'
   },
   autoAnalyze: true,
   autoAnalyzeDelay: 1500,
@@ -91,16 +91,17 @@ export const AVAILABLE_MODELS: Record<AIProviderType, string[]> = {
     'gpt-4o'
   ],
   gemini: [
+    'gemini-2.5-flash',
+    'gemini-2.5-pro',
     'gemini-3.1-pro-preview',
     'gemini-3.1-flash-lite-preview',
-    'gemini-3-flash',
-    'gemini-2.5-pro',
-    'gemini-2.5-flash'
+    'gemini-3-flash-preview'
   ],
   cerebras: [
+    'gpt-oss-120b',
     'llama3.1-8b',
     'qwen-3-235b-a22b-instruct-2507',
-    'gpt-oss-120b'
+    'zai-glm-4.7'
   ]
 };
 
