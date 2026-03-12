@@ -38,9 +38,9 @@ var DEFAULT_SETTINGS = {
     cerebras: ""
   },
   selectedModel: {
-    anthropic: "claude-sonnet-4-20250514",
-    openai: "gpt-4.1",
-    gemini: "gemini-2.5-pro-preview-06-05",
+    anthropic: "claude-sonnet-4.6-20260217",
+    openai: "gpt-5.4",
+    gemini: "gemini-3.1-pro",
     cerebras: "qwen-3-32b"
   },
   autoAnalyze: true,
@@ -52,31 +52,31 @@ var DEFAULT_SETTINGS = {
 };
 var AVAILABLE_MODELS = {
   anthropic: [
-    "claude-sonnet-4-20250514",
-    "claude-3-5-sonnet-20241022",
-    "claude-3-5-haiku-20241022",
-    "claude-3-opus-20240229"
+    "claude-opus-4.6-20260205",
+    "claude-sonnet-4.6-20260217",
+    "claude-opus-4.5-20251124",
+    "claude-sonnet-4.5-20250929",
+    "claude-haiku-4.5-20251015"
   ],
   openai: [
-    "gpt-4.1",
-    "gpt-4o",
-    "gpt-4o-mini",
-    "o3-mini",
-    "o1-mini"
+    "gpt-5.4",
+    "gpt-5.4-pro",
+    "gpt-5.3-instant",
+    "gpt-5.3-codex",
+    "gpt-5.2"
   ],
   gemini: [
-    "gemini-2.5-pro-preview-06-05",
-    "gemini-2.5-flash-preview-05-20",
-    "gemini-2.0-flash",
-    "gemini-1.5-pro"
+    "gemini-3.1-pro",
+    "gemini-3.1-flash-lite",
+    "gemini-3-flash",
+    "gemini-3-pro"
   ],
   cerebras: [
-    "qwen-3-235b-a22b-instruct-2507",
+    "qwen-3-235b-a22b-instruct",
     "qwen-3-32b",
     "deepseek-r1-distill-llama-70b",
     "llama-4-scout-17b-16e-instruct",
-    "llama-3.3-70b",
-    "llama-3.1-8b"
+    "llama-3.3-70b"
   ]
 };
 var AI_PATTERNS_KO = {
@@ -521,9 +521,9 @@ var LocalAnalyzer = class {
 // src/analyzers/AIProvider.ts
 var import_obsidian = require("obsidian");
 var DEFAULT_MODELS = {
-  anthropic: "claude-sonnet-4-20250514",
-  openai: "gpt-4.1",
-  gemini: "gemini-2.5-pro-preview-06-05",
+  anthropic: "claude-sonnet-4.6-20260217",
+  openai: "gpt-5.4",
+  gemini: "gemini-3.1-pro",
   cerebras: "qwen-3-32b"
 };
 var API_ENDPOINTS = {

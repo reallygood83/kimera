@@ -7,9 +7,9 @@ interface AIProviderConfig {
 }
 
 const DEFAULT_MODELS: Record<AIProviderType, string> = {
-  anthropic: 'claude-sonnet-4-20250514',
-  openai: 'gpt-4.1',
-  gemini: 'gemini-2.5-pro-preview-06-05',
+  anthropic: 'claude-sonnet-4.6-20260217',
+  openai: 'gpt-5.4',
+  gemini: 'gemini-3.1-pro',
   cerebras: 'qwen-3-32b'
 };
 
