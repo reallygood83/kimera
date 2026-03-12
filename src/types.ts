@@ -81,14 +81,9 @@ export const AVAILABLE_MODELS: Record<AIProviderType, string[]> = {
   ],
   openai: [
     'gpt-5.4',
-    'gpt-5.4-pro',
     'gpt-5.3',
-    'gpt-5-mini',
     'gpt-5',
-    'o3',
-    'o3-mini',
-    'o4-mini',
-    'gpt-4o'
+    'gpt-5-mini'
   ],
   gemini: [
     'gemini-2.5-flash',

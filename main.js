@@ -62,14 +62,9 @@ var AVAILABLE_MODELS = {
   ],
   openai: [
     "gpt-5.4",
-    "gpt-5.4-pro",
     "gpt-5.3",
-    "gpt-5-mini",
     "gpt-5",
-    "o3",
-    "o3-mini",
-    "o4-mini",
-    "gpt-4o"
+    "gpt-5-mini"
   ],
   gemini: [
     "gemini-2.5-flash",
@@ -587,21 +582,23 @@ ${text}
     return this.extractText(response);
   }
   buildPrompt(text) {
-    return `\uB2F9\uC2E0\uC740 AI \uD14D\uC2A4\uD2B8 \uAC10\uC9C0 \uC804\uBB38\uAC00\uC785\uB2C8\uB2E4. \uB2E4\uC74C \uD14D\uC2A4\uD2B8\uB97C \uBD84\uC11D\uD558\uC138\uC694.
+    return `You are an AI text detection expert. Analyze the following Korean text and respond in Korean.
+\uBC18\uB4DC\uC2DC \uD55C\uAD6D\uC5B4\uB85C \uBD84\uC11D \uACB0\uACFC\uB97C \uC791\uC131\uD558\uC138\uC694.
 
 \uD14D\uC2A4\uD2B8:
 """
 ${text.substring(0, 4e3)}
 """
 
-JSON \uD615\uC2DD\uC73C\uB85C \uC751\uB2F5:
-{
-  "humanScore": 0-100 (\uB192\uC744\uC218\uB85D \uC778\uAC04\uC801),
-  "reasoning": "\uBD84\uC11D \uADFC\uAC70",
-  "issues": [{"text": "\uBB38\uC81C \uAD6C\uAC04", "reason": "\uC774\uC720", "severity": "high|medium|low"}],
-  "suggestions": [{"original": "\uC6D0\uBCF8", "suggested": "\uC218\uC815\uC548", "reason": "\uC774\uC720"}],
-  "overallAdvice": "\uC804\uCCB4 \uC870\uC5B8"
-}`;
+\uC751\uB2F5\uC740 \uBC18\uB4DC\uC2DC \uC544\uB798 JSON \uD615\uC2DD\uB9CC \uCD9C\uB825\uD558\uC138\uC694. \uB2E4\uB978 \uD14D\uC2A4\uD2B8\uB098 \uC124\uBA85 \uC5C6\uC774 JSON\uB9CC \uCD9C\uB825:
+{"humanScore":0,"reasoning":"","issues":[],"suggestions":[],"overallAdvice":""}
+
+\uD544\uB4DC \uC124\uBA85:
+- humanScore: 0-100 (\uB192\uC744\uC218\uB85D \uC778\uAC04\uC801)
+- reasoning: \uBD84\uC11D \uADFC\uAC70 (\uD55C\uAD6D\uC5B4)
+- issues: [{"text":"\uBB38\uC81C \uAD6C\uAC04","reason":"\uC774\uC720","severity":"high|medium|low"}]
+- suggestions: [{"original":"\uC6D0\uBCF8","suggested":"\uC218\uC815\uC548","reason":"\uC774\uC720"}]
+- overallAdvice: \uC804\uCCB4 \uC870\uC5B8 (\uD55C\uAD6D\uC5B4)`;
   }
   async callAPI(prompt) {
     const requestParams = this.buildRequest(prompt);
@@ -679,7 +676,11 @@ JSON \uD615\uC2DD\uC73C\uB85C \uC751\uB2F5:
           body: JSON.stringify({
             model: this.model,
             max_completion_tokens: 2048,
-            messages: [{ role: "user", content: prompt }]
+            messages: [
+              { role: "system", content: "You are an AI text analyzer. Always respond with valid JSON only. No markdown, no explanations." },
+              { role: "user", content: prompt }
+            ],
+            response_format: { type: "json_object" }
           })
         };
       case "gemini":
@@ -728,11 +729,27 @@ JSON \uD615\uC2DD\uC73C\uB85C \uC751\uB2F5:
   }
   parseResponse(response, originalText) {
     const text = this.extractText(response);
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    let jsonStr = "";
+    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
+      jsonStr = codeBlockMatch[1];
+    } else {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+    }
+    if (!jsonStr) {
+      console.error("[Kimera] JSON not found in response:", text.substring(0, 500));
       throw new Error("Failed to parse JSON response");
     }
-    const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch (e) {
+      console.error("[Kimera] JSON parse error:", e, "Raw:", jsonStr.substring(0, 500));
+      throw new Error("Failed to parse JSON response");
+    }
     const issues = (parsed.issues || []).map((issue) => ({
       type: "ai-pattern",
       severity: issue.severity || "medium",

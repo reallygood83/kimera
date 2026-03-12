@@ -77,21 +77,23 @@ ${text}
   }
 
   private buildPrompt(text: string): string {
-    return `당신은 AI 텍스트 감지 전문가입니다. 다음 텍스트를 분석하세요.
+    return `You are an AI text detection expert. Analyze the following Korean text and respond in Korean.
+반드시 한국어로 분석 결과를 작성하세요.
 
 텍스트:
 """
 ${text.substring(0, 4000)}
 """
 
-JSON 형식으로 응답:
-{
-  "humanScore": 0-100 (높을수록 인간적),
-  "reasoning": "분석 근거",
-  "issues": [{"text": "문제 구간", "reason": "이유", "severity": "high|medium|low"}],
-  "suggestions": [{"original": "원본", "suggested": "수정안", "reason": "이유"}],
-  "overallAdvice": "전체 조언"
-}`;
+응답은 반드시 아래 JSON 형식만 출력하세요. 다른 텍스트나 설명 없이 JSON만 출력:
+{"humanScore":0,"reasoning":"","issues":[],"suggestions":[],"overallAdvice":""}
+
+필드 설명:
+- humanScore: 0-100 (높을수록 인간적)
+- reasoning: 분석 근거 (한국어)
+- issues: [{"text":"문제 구간","reason":"이유","severity":"high|medium|low"}]
+- suggestions: [{"original":"원본","suggested":"수정안","reason":"이유"}]
+- overallAdvice: 전체 조언 (한국어)`;
   }
 
   private async callAPI(prompt: string): Promise<unknown> {
@@ -178,7 +180,11 @@ JSON 형식으로 응답:
           body: JSON.stringify({
             model: this.model,
             max_completion_tokens: 2048,
-            messages: [{ role: 'user', content: prompt }]
+            messages: [
+              { role: 'system', content: 'You are an AI text analyzer. Always respond with valid JSON only. No markdown, no explanations.' },
+              { role: 'user', content: prompt }
+            ],
+            response_format: { type: 'json_object' }
           })
         };
 
@@ -232,12 +238,29 @@ JSON 형식으로 응답:
   private parseResponse(response: unknown, originalText: string): AnalysisResult {
     const text = this.extractText(response);
     
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    let jsonStr = '';
+    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
+      jsonStr = codeBlockMatch[1];
+    } else {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+    }
+    
+    if (!jsonStr) {
+      console.error('[Kimera] JSON not found in response:', text.substring(0, 500));
       throw new Error('Failed to parse JSON response');
     }
 
-    const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch (e) {
+      console.error('[Kimera] JSON parse error:', e, 'Raw:', jsonStr.substring(0, 500));
+      throw new Error('Failed to parse JSON response');
+    }
 
     const issues: AnalysisIssue[] = (parsed.issues || []).map((issue: {text: string; reason: string; severity?: string}) => ({
       type: 'ai-pattern' as const,
