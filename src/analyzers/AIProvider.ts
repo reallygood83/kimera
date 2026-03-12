@@ -7,10 +7,10 @@ interface AIProviderConfig {
 }
 
 const DEFAULT_MODELS: Record<AIProviderType, string> = {
-  anthropic: 'claude-3-5-sonnet-20241022',
-  openai: 'gpt-4o',
-  gemini: 'gemini-2.0-flash',
-  cerebras: 'llama-3.3-70b'
+  anthropic: 'claude-sonnet-4-20250514',
+  openai: 'gpt-4.1',
+  gemini: 'gemini-2.5-pro-preview-06-05',
+  cerebras: 'qwen-3-32b'
 };
 
 const API_ENDPOINTS: Record<AIProviderType, string> = {

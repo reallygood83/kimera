@@ -56,10 +56,10 @@ export const DEFAULT_SETTINGS: WriteGuardSettings = {
     cerebras: ''
   },
   selectedModel: {
-    anthropic: 'claude-3-5-sonnet-20241022',
-    openai: 'gpt-4o',
-    gemini: 'gemini-2.0-flash',
-    cerebras: 'llama-3.3-70b'
+    anthropic: 'claude-sonnet-4-20250514',
+    openai: 'gpt-4.1',
+    gemini: 'gemini-2.5-pro-preview-06-05',
+    cerebras: 'qwen-3-32b'
   },
   autoAnalyze: true,
   autoAnalyzeDelay: 1500,
@@ -71,23 +71,29 @@ export const DEFAULT_SETTINGS: WriteGuardSettings = {
 
 export const AVAILABLE_MODELS: Record<AIProviderType, string[]> = {
   anthropic: [
+    'claude-sonnet-4-20250514',
     'claude-3-5-sonnet-20241022',
     'claude-3-5-haiku-20241022',
-    'claude-3-opus-20240229',
-    'claude-3-sonnet-20240229'
+    'claude-3-opus-20240229'
   ],
   openai: [
+    'gpt-4.1',
     'gpt-4o',
     'gpt-4o-mini',
-    'gpt-4-turbo',
-    'gpt-3.5-turbo'
+    'o3-mini',
+    'o1-mini'
   ],
   gemini: [
+    'gemini-2.5-pro-preview-06-05',
+    'gemini-2.5-flash-preview-05-20',
     'gemini-2.0-flash',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash'
+    'gemini-1.5-pro'
   ],
   cerebras: [
+    'qwen-3-235b-a22b-instruct-2507',
+    'qwen-3-32b',
+    'deepseek-r1-distill-llama-70b',
+    'llama-4-scout-17b-16e-instruct',
     'llama-3.3-70b',
     'llama-3.1-8b'
   ]
