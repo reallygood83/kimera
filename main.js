@@ -663,9 +663,9 @@ OUTPUT: {"humanScore":0-100,"reasoning":"\uC774\uC720","issues":[{"text":"","rea
           },
           body: JSON.stringify({
             model: this.model,
-            max_completion_tokens: 1024,
+            max_completion_tokens: 2e3,
             messages: [
-              { role: "system", content: "Output JSON only." },
+              { role: "system", content: "Output valid JSON only. Be concise." },
               { role: "user", content: prompt }
             ],
             response_format: { type: "json_object" }
@@ -677,8 +677,11 @@ OUTPUT: {"humanScore":0-100,"reasoning":"\uC774\uC720","issues":[{"text":"","rea
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { maxOutputTokens: 2048 }
+            contents: [{ parts: [{ text: "Output JSON only. " + prompt }] }],
+            generationConfig: {
+              maxOutputTokens: 2e3,
+              responseMimeType: "application/json"
+            }
           })
         };
       case "cerebras":
@@ -722,13 +725,20 @@ OUTPUT: {"humanScore":0-100,"reasoning":"\uC774\uC720","issues":[{"text":"","rea
   parseResponse(response, originalText) {
     const text = this.extractText(response);
     let jsonStr = "";
-    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (codeBlockMatch) {
+    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/);
+    if (codeBlockMatch && codeBlockMatch[1].includes("{")) {
       jsonStr = codeBlockMatch[1];
-    } else {
+    }
+    if (!jsonStr) {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         jsonStr = jsonMatch[0];
+      }
+    }
+    if (!jsonStr) {
+      const partialMatch = text.match(/\{[\s\S]*/);
+      if (partialMatch) {
+        jsonStr = partialMatch[0];
       }
     }
     if (!jsonStr) {
@@ -739,8 +749,13 @@ OUTPUT: {"humanScore":0-100,"reasoning":"\uC774\uC720","issues":[{"text":"","rea
     try {
       parsed = JSON.parse(jsonStr);
     } catch (e) {
-      console.error("[Kimera] JSON parse error:", e, "Raw:", jsonStr.substring(0, 500));
-      throw new Error("Failed to parse JSON response");
+      try {
+        const fixedJson = this.tryFixJson(jsonStr);
+        parsed = JSON.parse(fixedJson);
+      } catch (e2) {
+        console.error("[Kimera] JSON parse error. Raw:", jsonStr.substring(0, 300));
+        throw new Error("Failed to parse JSON response");
+      }
     }
     const issues = (parsed.issues || []).map((issue) => ({
       type: "ai-pattern",
@@ -782,6 +797,32 @@ OUTPUT: {"humanScore":0-100,"reasoning":"\uC774\uC720","issues":[{"text":"","rea
       source: "claude-api",
       analyzedAt: Date.now()
     };
+  }
+  tryFixJson(jsonStr) {
+    let fixed = jsonStr.trim();
+    let braceCount = 0;
+    let bracketCount = 0;
+    for (const char of fixed) {
+      if (char === "{")
+        braceCount++;
+      if (char === "}")
+        braceCount--;
+      if (char === "[")
+        bracketCount++;
+      if (char === "]")
+        bracketCount--;
+    }
+    while (bracketCount > 0) {
+      fixed += "]";
+      bracketCount--;
+    }
+    while (braceCount > 0) {
+      fixed += "}";
+      braceCount--;
+    }
+    fixed = fixed.replace(/,\s*([}\]])/g, "$1");
+    fixed = fixed.replace(/:\s*"[^"]*$/g, ':""}');
+    return fixed;
   }
   findPosition(text, target) {
     const index = text.indexOf(target);
